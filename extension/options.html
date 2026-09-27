@@ -11,11 +11,35 @@
     label { font-size: 13px; color: var(--muted); }
     .field { display: grid; gap: 6px; }
     .check { display: flex; gap: 8px; align-items: center; }
+    .code { font: 600 20px/1.3 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.04em; background: var(--bg); border: 1px dashed var(--line); border-radius: 10px; padding: 12px; text-align: center; user-select: all; }
+    input[type="text"] { width: 100%; font: inherit; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+    #recover { border: 2px solid var(--accent); }
   </style>
 </head>
 <body>
   <main>
-    <div class="row"><span class="lockglyph" aria-hidden="true">🔒</span><div><h1 style="font-size:22px">AppLock</h1><p class="muted">Lock and hide ChatGPT, Claude and Gemini chats on this browser.</p></div></div>
+    <div class="row"><span class="lockglyph" aria-hidden="true">🔒</span><div><h1 style="font-size:22px">AppLock</h1><p class="muted">Lock and hide ChatGPT, Claude and Gemini chats.</p></div></div>
+
+    <section class="card stack" id="codeCard" hidden>
+      <h2>Your recovery code</h2>
+      <p>If you forget your password, this code lets you set a new one. It is shown only once. Save it in your password manager or write it down.</p>
+      <div class="code" id="codeText" aria-live="polite"></div>
+      <div class="row"><button id="copyCode">Copy code</button><span class="spacer"></span><button class="primary" id="savedCode">I’ve saved it</button></div>
+    </section>
+
+    <section class="card stack" id="recover" hidden>
+      <h2>Forgot your password?</h2>
+      <p class="muted">Set a new password with Touch ID on this Mac or with your recovery code. Your locked chats stay locked.</p>
+      <form id="resetForm" class="stack">
+        <div class="field"><label for="rp1">Choose a new password</label><input id="rp1" type="password" autocomplete="new-password" required minlength="4"></div>
+        <div class="field"><label for="rp2">Repeat the new password</label><input id="rp2" type="password" autocomplete="new-password" required minlength="4"></div>
+        <button type="button" class="primary" id="resetTouch" hidden>Reset with Touch ID</button>
+        <div class="field"><label for="rcode">Recovery code</label><input id="rcode" type="text" autocomplete="off" spellcheck="false" autocapitalize="characters" placeholder="XXXXX-XXXXX-XXXXX-XXXXX"></div>
+        <button type="submit" id="resetCode">Reset with recovery code</button>
+        <div class="error" id="resetErr" role="alert"></div>
+      </form>
+      <p class="muted" style="font-size:13px" id="noWay" hidden>Without Touch ID or a recovery code the password can’t be reset. Removing the extension makes your locked chats visible again.</p>
+    </section>
 
     <section class="card stack" id="setPw">
       <h2 id="pwHeading">1 · Choose a password</h2>
@@ -35,14 +59,29 @@
       <div class="error" id="touchErr" role="alert"></div>
     </section>
 
-    <section class="card stack">
-      <h2>3 · Behaviour</h2>
-      <div class="field"><label for="mins">Re-lock after (minutes)</label><input id="mins" type="number" min="1" max="120" inputmode="numeric" style="max-width:120px"></div>
-      <label class="check"><input type="checkbox" id="bridge"> Let the AppLock MCP server on this computer lock chats for me (it can only lock, never reveal)</label>
-      <p class="muted" style="font-size:13px">Shortcuts: <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> locks the open chat · <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> hides everything again. You can also right-click any chat in the sidebar.</p>
+    <section class="card stack" id="recoveryCard">
+      <h2>3 · Recovery code</h2>
+      <p class="muted" id="recoveryInfo">A recovery code lets you reset a forgotten password.</p>
+      <form id="newCodeForm" class="row">
+        <input id="codePw" type="password" autocomplete="current-password" placeholder="Current password…" aria-label="Current password">
+        <button type="submit" id="newCode" style="white-space:nowrap">Create new code</button>
+      </form>
+      <button type="button" id="newCodeTouch" hidden>Create new code with Touch ID</button>
+      <div class="error" id="codeErr" role="alert"></div>
     </section>
 
-    <p class="muted" style="font-size:12px">Locked chats still exist on the provider's servers and on your other devices. AppLock hides them in this browser profile. Forgot the password? Remove and reinstall the extension; locked chats simply become visible again.</p>
+    <section class="card stack">
+      <h2>4 · Behaviour</h2>
+      <div class="field"><label for="mins">Re-lock after (minutes)</label><input id="mins" type="number" min="1" max="120" inputmode="numeric" style="max-width:120px"></div>
+      <label class="check"><input type="checkbox" id="bridge"> Let the AppLock MCP server on this computer lock chats for me (it can only lock, never reveal)</label>
+      <p class="muted" style="font-size:13px">Shortcuts: <kbd>Option</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> locks the open chat · <kbd>Option</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> hides everything again. You can also right-click any chat in the sidebar.</p>
+    </section>
+
+    <section class="card stack">
+      <h2>Other computers and your phone</h2>
+      <p class="muted" style="font-size:13px">When you’re signed in to Chrome with sync on, your locks and password follow you to Chrome on your other computers. Install AppLock there too. Only chat IDs sync, never titles. Touch ID is set up separately on each Mac.</p>
+      <p class="muted" style="font-size:13px">No extension can change the ChatGPT, Claude or Gemini phone apps. On iPhone, lock the whole app instead: touch and hold its icon, then choose <strong>Require Face ID</strong>.</p>
+    </section>
   </main>
   <script type="module" src="options.js"></script>
 </body>

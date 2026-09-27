@@ -119,7 +119,7 @@
     <ol class="steps">
       <li>
         <h3>Install the MCP server</h3>
-        <pre><code>npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.1.0/applock-mcp-0.1.0.tgz</code></pre>
+        <pre><code>npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.2.0/applock-mcp-0.2.0.tgz</code></pre>
         <p>This adds the <code>applock-mcp</code> command.</p>
       </li>
       <li>
@@ -164,8 +164,9 @@ cloudflared tunnel --url http://localhost:8787</code></pre>
       <li>
         <h3>Add the browser extension</h3>
         <p><a class="button small" href="applock-extension.zip" download>Download the extension (.zip, 30 KB)</a></p>
-        <p>Unzip it. In Chrome open <code>chrome://extensions</code>, turn on <strong>Developer mode</strong>, choose <strong>Load unpacked</strong> and select the unzipped folder. AppLock opens its setup page: pick a password and turn on Touch ID.</p>
-        <p>To lock a chat, open it and click the AppLock icon, right-click it in the sidebar, or press <kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>L</kbd>. Press <kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>K</kbd> to hide everything again.</p>
+        <p>Unzip it. In Chrome open <code>chrome://extensions</code>, turn on <strong>Developer mode</strong>, choose <strong>Load unpacked</strong> and select the unzipped folder. AppLock opens its setup page: pick a password, save the recovery code it shows you, and turn on Touch ID.</p>
+        <p>To lock a chat, open it and click the AppLock icon, right-click it in the sidebar, or press <kbd>Option</kbd> <kbd>Shift</kbd> <kbd>L</kbd> (<kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>L</kbd> on Windows). Press <kbd>Option</kbd> <kbd>Shift</kbd> <kbd>K</kbd> to hide everything again. To see a locked chat, click the AppLock icon and unlock with Touch ID or your password.</p>
+        <p>Using Chrome on more than one computer? Install AppLock on each one. Your locks and password follow your Chrome profile through Chrome sync.</p>
       </li>
     </ol>
   </section>
@@ -208,7 +209,9 @@ cloudflared tunnel --url http://localhost:8787</code></pre>
         <h3>Doesn’t protect against</h3>
         <ul>
           <li>The provider. ChatGPT, Claude and Gemini still store web chats on their servers.</li>
-          <li>Your account on another device or browser profile. Locks apply only to this browser profile.</li>
+          <li>The ChatGPT, Claude and Gemini phone apps, which no extension can change. On iPhone, lock the whole app with Face ID instead (see below).</li>
+          <li>Chrome on a computer where AppLock isn’t installed, or where Chrome sync is off.</li>
+          <li>Someone who removes the extension. Chrome always lets you remove extensions, and your chats come back into view when you do.</li>
           <li>Malware running as you, or someone with developer tools open on your extension.</li>
           <li>Titles in the Claude desktop app’s own session list, which it keeps separately. The contents are still encrypted.</li>
         </ul>
@@ -220,19 +223,21 @@ cloudflared tunnel --url http://localhost:8787</code></pre>
     </details>
     <details>
       <summary>How the extension decides who you are</summary>
-      <p>The password is stretched with PBKDF2-SHA256 (600,000 rounds) and compared in constant time; five wrong tries start an escalating lockout. Touch ID uses WebAuthn with your Mac’s built-in authenticator. AppLock checks the challenge and the user-verification flag, and verifies the signature against the public key saved when you enrolled.</p>
+      <p>The password is stretched with PBKDF2-SHA256 (600,000 rounds) and compared in constant time; five wrong tries start an escalating lockout. The 20-character recovery code (100 bits) is stored only as a hash and is replaced every time it’s used. Locks and the password hash are kept in Chrome sync storage; titles and the Touch ID key stay on each computer. Touch ID uses WebAuthn with your Mac’s built-in authenticator. AppLock checks the challenge and the user-verification flag, and verifies the signature against the public key saved when you enrolled.</p>
     </details>
   </section>
 
   <section id="faq" class="band">
     <h2>Questions</h2>
     <details>
-      <summary>I forgot my passphrase. Can I get my chats back?</summary>
-      <p>Not the hidden Claude Code or Antigravity sessions. The encryption is real, and there is no back door. With Touch ID on you can still unlock and run <code>applock-mcp passwd</code> to set a new one. For the extension, remove and reinstall it; your locked web chats simply become visible again.</p>
+      <summary>I forgot my password. What now?</summary>
+      <p><strong>In the browser:</strong> click <strong>Forgot password?</strong> on the lock screen or in the AppLock popup. Set a new password with Touch ID on your Mac, or with the recovery code AppLock showed you when you first chose a password. You get a fresh recovery code afterwards. Your locked chats stay locked the whole time.</p>
+      <p><strong>For the MCP vault:</strong> with Touch ID on, run <code>applock-mcp passwd</code>. Without Touch ID the vault passphrase can’t be recovered; the encryption is real and has no back door.</p>
     </details>
     <details>
-      <summary>Why doesn’t the chat disappear from ChatGPT on my phone?</summary>
-      <p>Because it still exists in your OpenAI account. AppLock hides chats in this browser; it never deletes or edits anything on the provider’s side.</p>
+      <summary>Do my locks work on my other computers and my phone?</summary>
+      <p><strong>Other computers:</strong> yes. Locks and your password travel with Chrome sync, so install AppLock in Chrome on the other computer, signed in to the same Chrome profile, and your locked chats are hidden there too. Only the chat IDs sync, never the titles. Set up Touch ID separately on each Mac.</p>
+      <p><strong>Phone:</strong> no extension can reach inside the ChatGPT, Claude or Gemini apps, and the chats still exist in your account. On iPhone (iOS 18 or later), lock the whole app instead: touch and hold the ChatGPT icon, choose <strong>Require Face ID</strong>, then confirm. Choose <strong>Hide and Require Face ID</strong> to also move it to the hidden apps folder. On Android 15 or later, put the app in <strong>Private space</strong>.</p>
     </details>
     <details>
       <summary>Can I hide the Claude Code session I’m in right now?</summary>

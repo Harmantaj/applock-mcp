@@ -53,5 +53,6 @@ $("form").addEventListener("submit", async (ev) => {
   }
 });
 
+$("forgot").addEventListener("click", () => chrome.runtime.sendMessage({ type: "openRecovery" }));
 $("back").hidden = !embedded;
 $("back").addEventListener("click", () => chrome.runtime.sendMessage({ type: "goHome", site: params.get("site") }));

@@ -1,6 +1,9 @@
 import "./sites.js";
+import "./store.js";
 
-const { SITES, parseChatUrl, keyOf } = globalThis.AppLockSites;
+const { SITES, parseChatUrl } = globalThis.AppLockSites;
+const store = globalThis.AppLockStore;
+store.ready().catch(() => {});
 const BRIDGE = "http://127.0.0.1:47521/bridge/sync";
 const CHAT_PATTERNS = [
   "https://chatgpt.com/*c/*",
@@ -12,31 +15,28 @@ const CHAT_PATTERNS = [
 
 // ---- lock store ------------------------------------------------------------------
 
-async function getLocked() {
-  return (await chrome.storage.local.get("locked")).locked ?? {};
+function getLocked() {
+  return store.getLocked();
 }
 
 async function lockChat({ site, id, title }) {
   if (!site || !id) throw new Error("Not a chat");
-  const { auth } = await chrome.storage.local.get("auth");
+  const auth = await store.getAuth();
   if (!auth?.hash) {
     chrome.runtime.openOptionsPage();
     throw new Error("Set a password in AppLock first.");
   }
-  const locked = await getLocked();
-  locked[keyOf(site, id)] = { site, id, title: (title || id).slice(0, 200), lockedAt: Date.now() };
+  const lock = await store.addLock({ site, id, title: (title || "").slice(0, 200) });
   // Locking always re-hides everything, like closing a locked note.
-  await chrome.storage.local.set({ locked, unlockedUntil: 0 });
-  return locked[keyOf(site, id)];
+  await chrome.storage.local.set({ unlockedUntil: 0 });
+  return { ...lock, title: lock.title || id };
 }
 
 async function unlockChat({ site, id }) {
   const { unlockedUntil = 0 } = await chrome.storage.local.get("unlockedUntil");
   // Removing a lock is only allowed while the user has authenticated.
   if (Date.now() >= unlockedUntil) throw new Error("Unlock AppLock first.");
-  const locked = await getLocked();
-  delete locked[keyOf(site, id)];
-  await chrome.storage.local.set({ locked });
+  await store.removeLock(site, id);
 }
 
 async function titleFromTab(tabId, id) {
@@ -55,7 +55,8 @@ chrome.runtime.onInstalled.addListener(async ({ reason }) => {
     chrome.contextMenus.create({ id: "lock-page", title: "Lock this chat with AppLock", contexts: ["page"], documentUrlPatterns: CHAT_PATTERNS });
   });
   chrome.alarms.create("bridge", { periodInMinutes: 0.5 });
-  const { auth } = await chrome.storage.local.get("auth");
+  const auth = await store.getAuth().catch(() => undefined);
+  // On a second computer the password arrives through Chrome sync, so no setup is needed.
   if (reason === "install" && !auth?.hash) chrome.runtime.openOptionsPage();
 });
 
@@ -110,6 +111,8 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         if (sender.tab?.id && site) return chrome.tabs.update(sender.tab.id, { url: `https://${site.hosts[0]}/` });
         return;
       }
+      case "openRecovery":
+        return chrome.tabs.create({ url: chrome.runtime.getURL("options.html#recover") });
       case "report":
         lastReport = { active: msg.active, chats: msg.chats, site: msg.site, at: Date.now() };
         return syncBridge();
