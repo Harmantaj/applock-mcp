@@ -18,7 +18,7 @@ import {
   type Config,
 } from "./vault.js";
 
-export const VERSION = "0.3.1";
+export const VERSION = "0.4.0";
 
 const INSTRUCTIONS = `AppLock hides private chats. Hiding never needs unlocking. Listing, reading or restoring hidden chats needs unlock_vault, which shows a Touch ID prompt or opens a passphrase page on the user's computer; never ask the user to type their passphrase into chat. For ChatGPT/Claude/Gemini web chats, use hide_browser_chat (needs the AppLock browser extension). Do not repeat hidden chat contents unless the user asks.`;
 
@@ -27,7 +27,7 @@ const fail = (t: string) => ({ content: [{ type: "text" as const, text: t }], is
 
 function requireConfig(): Config {
   const cfg = loadConfig();
-  if (!cfg) throw new Error("AppLock is not set up yet. In a terminal, run:  applock-mcp setup  (install: npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.3.1/applock-mcp-0.3.1.tgz)");
+  if (!cfg) throw new Error("AppLock is not set up yet. In a terminal, run:  applock-mcp setup  (install: npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.4.0/applock-mcp-0.4.0.tgz)");
   return cfg;
 }
 

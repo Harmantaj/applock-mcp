@@ -119,7 +119,7 @@
     <ol class="steps">
       <li>
         <h3>Install the MCP server</h3>
-        <pre><code>npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.3.1/applock-mcp-0.3.1.tgz</code></pre>
+        <pre><code>npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.4.0/applock-mcp-0.4.0.tgz</code></pre>
         <p>This adds the <code>applock-mcp</code> command.</p>
       </li>
       <li>
@@ -146,22 +146,20 @@
             <p>This adds AppLock to <code>~/.gemini/config/mcp_config.json</code>, which Antigravity 2.0, the IDE and the CLI share. In the agent panel open <strong>…</strong> › <strong>Manage MCPs</strong> › <strong>Refresh</strong>.</p>
           </div>
           <div role="tabpanel" id="panel-phone" aria-labelledby="tab-phone" hidden>
-            <p>Use AppLock from the Claude app on iPhone or Android as a custom connector. It’s a remote control for your Mac: lock everything now, hide a Claude Code session, or lock a ChatGPT chat in your Mac’s Chrome. It can’t hide chats inside the phone apps themselves, and your Mac needs to be awake and online.</p>
-            <p><strong>1. Get a permanent HTTPS address with Tailscale Funnel</strong> (free). Install Tailscale, open it and sign in:</p>
+            <p>Use AppLock from Claude everywhere: the web, the Claude desktop app and the Claude iPhone and Android apps. It works as a remote control for your Mac: lock everything now, hide a Claude Code session, or lock a ChatGPT chat in your Mac’s Chrome. It can’t hide chats inside the phone apps themselves, and your Mac needs to be awake and online.</p>
+            <p><strong>1. Install Tailscale and sign in</strong> (free). It gives your Mac a private, permanent HTTPS address.</p>
             <pre><code>brew install --cask tailscale-app</code></pre>
-            <p>Then share AppLock’s port. The first time, Tailscale prints a link to turn on Funnel for your account; open it and approve.</p>
-            <pre><code>tailscale funnel --bg 8787</code></pre>
-            <p>If <code>tailscale</code> isn’t found, use <code>/Applications/Tailscale.app/Contents/MacOS/Tailscale</code> instead. Note the address it prints, like <code>https://my-mac.tail1234.ts.net</code>.</p>
-            <p><strong>2. Keep AppLock running in the background</strong> with that address:</p>
-            <pre><code>applock-mcp install remote --public-url https://my-mac.tail1234.ts.net</code></pre>
-            <p>It prints your connector URL, ending in a long secret. Treat it like a password; <code>applock-mcp remote rotate</code> replaces it.</p>
-            <p><strong>3. Add it to Claude.</strong> On <a href="https://claude.ai/settings/connectors">claude.ai › Settings › Connectors</a> in a browser, choose <strong>Add custom connector</strong>, name it AppLock and paste the connector URL. It then shows up in the Claude app on your phone; turn it on from the tools menu in a chat.</p>
+            <p>Or get it from the Mac App Store. Open it from the menu bar and log in.</p>
+            <p><strong>2. Run one command.</strong></p>
+            <pre><code>applock-mcp install phone</code></pre>
+            <p>It starts AppLock in the background, turns on Tailscale Funnel for AppLock only (never for a port another app is using), checks it from the internet, and copies your connector URL to the clipboard. The first time, Tailscale opens a page asking you to allow Funnel; click Enable.</p>
+            <p><strong>3. Add it to Claude once.</strong> On <a href="https://claude.ai/customize/connectors">claude.ai › Customize › Connectors</a>, choose <strong>Add</strong> › <strong>Add custom connector</strong>, name it AppLock and paste the URL. It appears in the Claude desktop and phone apps automatically; turn it on from the tools menu in a chat.</p>
             <p>To unlock from your phone, ask Claude to unlock AppLock. It replies with a one-time link to your Mac’s unlock page (valid 5 minutes). Your passphrase goes from your phone’s browser straight to your Mac and never through Claude.</p>
-            <p>ChatGPT’s phone apps don’t support custom connectors; OpenAI only allows them in ChatGPT on the web.</p>
+            <p><code>applock-mcp remote url</code> copies the URL again, <code>applock-mcp remote rotate</code> replaces it if it leaks, and <code>applock-mcp uninstall phone</code> turns everything off.</p>
           </div>
           <div role="tabpanel" id="panel-gpt" aria-labelledby="tab-gpt" hidden>
             <p>ChatGPT connects to MCP servers only on the web (chatgpt.com), with Developer mode on a Plus, Pro, Business, Enterprise or Education plan. Its phone apps can’t use custom connectors.</p>
-            <p>Set up the permanent address from the <strong>Claude on your phone</strong> tab (steps 1 and 2), then in ChatGPT open <strong>Settings</strong> › <strong>Apps &amp; Connectors</strong> › <strong>Advanced</strong>, turn on <strong>Developer mode</strong>, create a connector, paste the same connector URL and choose <strong>No authentication</strong>.</p>
+            <p>Run steps 1 and 2 from the <strong>Claude on your phone</strong> tab, then in ChatGPT open <strong>Settings</strong> › <strong>Apps &amp; Connectors</strong> › <strong>Advanced</strong>, turn on <strong>Developer mode</strong>, create a connector, paste the same connector URL and choose <strong>No authentication</strong>.</p>
           </div>
           <div role="tabpanel" id="panel-other" aria-labelledby="tab-other" hidden>
             <p>Any MCP client that can start a local command works. Add this to its MCP configuration:</p>
