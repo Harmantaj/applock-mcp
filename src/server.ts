@@ -27,7 +27,7 @@ const fail = (t: string) => ({ content: [{ type: "text" as const, text: t }], is
 
 function requireConfig(): Config {
   const cfg = loadConfig();
-  if (!cfg) throw new Error("AppLock is not set up yet. In a terminal, run:  applock-mcp setup  (install: npm install -g github:Harmantaj/applock-mcp)");
+  if (!cfg) throw new Error("AppLock is not set up yet. In a terminal, run:  applock-mcp setup  (install: npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.1.0/applock-mcp-0.1.0.tgz)");
   return cfg;
 }
 
