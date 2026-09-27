@@ -1,0 +1,70 @@
+:root {
+  --bg: #ffffff;
+  --panel: #f5f5f7;
+  --text: #1d1d1f;
+  --muted: #6e6e73;
+  --line: #d2d2d7;
+  --accent: #0a66ff;
+  --accent-text: #ffffff;
+  --danger: #d70015;
+  --ok: #1e8e3e;
+  color-scheme: light dark;
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1c1e;
+    --panel: #2c2c2e;
+    --text: #f5f5f7;
+    --muted: #a1a1a6;
+    --line: #3a3a3c;
+    --accent: #4d8dff;
+    --danger: #ff6961;
+    --ok: #4cd964;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--text); }
+h1 { font-size: 17px; margin: 0; letter-spacing: -0.01em; }
+h2 { font-size: 13px; margin: 0 0 8px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+p { margin: 0; }
+.muted { color: var(--muted); }
+.stack { display: grid; gap: 10px; }
+.row { display: flex; align-items: center; gap: 8px; }
+.spacer { flex: 1; }
+input[type="password"], input[type="number"] {
+  width: 100%;
+  font: inherit;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--text);
+}
+input:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button {
+  font: inherit;
+  font-weight: 600;
+  padding: 9px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+button:hover:not(:disabled) { border-color: var(--muted); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+button.primary:hover:not(:disabled) { filter: brightness(1.1); }
+button.danger { color: var(--danger); }
+button.link { background: none; border: 0; padding: 4px; color: var(--accent); font-weight: 500; }
+button:disabled { opacity: 0.5; cursor: default; }
+.card { background: var(--panel); border-radius: 14px; padding: 14px; }
+.error { color: var(--danger); min-height: 1.3em; font-size: 13px; }
+.ok { color: var(--ok); }
+.lockglyph { font-size: 34px; line-height: 1; }
+ul.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+ul.list li { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--bg); border-radius: 10px; }
+ul.list li .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.badge { font-size: 11px; padding: 2px 6px; border-radius: 6px; background: var(--line); color: var(--text); }

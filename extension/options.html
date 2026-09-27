@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AppLock settings</title>
+  <link rel="stylesheet" href="ui.css">
+  <style>
+    body { padding: 40px 16px; }
+    main { max-width: 560px; margin: 0 auto; display: grid; gap: 16px; }
+    label { font-size: 13px; color: var(--muted); }
+    .field { display: grid; gap: 6px; }
+    .check { display: flex; gap: 8px; align-items: center; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="row"><span class="lockglyph" aria-hidden="true">🔒</span><div><h1 style="font-size:22px">AppLock</h1><p class="muted">Lock and hide ChatGPT, Claude and Gemini chats on this browser.</p></div></div>
+
+    <section class="card stack" id="setPw">
+      <h2 id="pwHeading">1 · Choose a password</h2>
+      <form id="pwForm" class="stack">
+        <div class="field" id="curField" hidden><label for="cur">Current password</label><input id="cur" type="password" autocomplete="current-password"></div>
+        <div class="field"><label for="pw1">New password</label><input id="pw1" type="password" autocomplete="new-password" required minlength="4"></div>
+        <div class="field"><label for="pw2">Repeat password</label><input id="pw2" type="password" autocomplete="new-password" required minlength="4"></div>
+        <div class="row"><button class="primary" type="submit" id="pwSave">Save password</button><span class="ok" id="pwOk" role="status"></span></div>
+        <div class="error" id="pwErr" role="alert"></div>
+      </form>
+    </section>
+
+    <section class="card stack" id="touchCard">
+      <h2>2 · Touch ID</h2>
+      <p class="muted" id="touchInfo">Unlock with your fingerprint instead of typing the password.</p>
+      <div class="row"><button id="touchOn" class="primary">Turn on Touch ID</button><button id="touchOff" hidden>Turn off Touch ID</button><span class="ok" id="touchOk" role="status"></span></div>
+      <div class="error" id="touchErr" role="alert"></div>
+    </section>
+
+    <section class="card stack">
+      <h2>3 · Behaviour</h2>
+      <div class="field"><label for="mins">Re-lock after (minutes)</label><input id="mins" type="number" min="1" max="120" inputmode="numeric" style="max-width:120px"></div>
+      <label class="check"><input type="checkbox" id="bridge"> Let the AppLock MCP server on this computer lock chats for me (it can only lock, never reveal)</label>
+      <p class="muted" style="font-size:13px">Shortcuts: <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> locks the open chat · <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> hides everything again. You can also right-click any chat in the sidebar.</p>
+    </section>
+
+    <p class="muted" style="font-size:12px">Locked chats still exist on the provider's servers and on your other devices. AppLock hides them in this browser profile. Forgot the password? Remove and reinstall the extension; locked chats simply become visible again.</p>
+  </main>
+  <script type="module" src="options.js"></script>
+</body>
+</html>

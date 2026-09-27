@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>AppLock</title>
+  <link rel="stylesheet" href="ui.css">
+  <style>
+    body { width: 340px; padding: 14px; }
+    header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .pill { font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: var(--panel); }
+    .pill.open { color: var(--ok); }
+    footer { margin-top: 12px; font-size: 12px; }
+    section + section { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <header>
+    <span aria-hidden="true">🔒</span>
+    <h1>AppLock</h1>
+    <span class="spacer"></span>
+    <span class="pill" id="state">Locked</span>
+  </header>
+
+  <section id="setup" class="card stack" hidden>
+    <p>Choose a password (and Touch ID) to start locking chats.</p>
+    <button class="primary" id="openSetup">Set up AppLock</button>
+  </section>
+
+  <div id="main" hidden>
+    <section class="card stack" id="current">
+      <h2>This tab</h2>
+      <p id="curTitle" class="muted">Open a ChatGPT, Claude or Gemini chat to lock it.</p>
+      <button class="primary" id="lockBtn" hidden>Lock this chat</button>
+      <button class="danger" id="unlockBtn" hidden>Remove lock</button>
+    </section>
+
+    <section class="card stack" id="unlockCard">
+      <h2>Show locked chats</h2>
+      <button class="primary" id="touch" hidden>Unlock with Touch ID</button>
+      <form id="pwForm" class="row">
+        <input id="pw" type="password" placeholder="Password…" aria-label="Password" autocomplete="current-password">
+        <button type="submit">Unlock</button>
+      </form>
+      <div class="error" id="err" role="alert" aria-live="polite"></div>
+    </section>
+
+    <section class="card stack" id="lockedCard" hidden>
+      <div class="row"><h2 style="margin:0">Locked chats</h2><span class="spacer"></span><button id="relock">Lock now</button></div>
+      <ul class="list" id="lockedList"></ul>
+    </section>
+
+    <footer class="row muted">
+      <span id="bridge">MCP: not connected</span>
+      <span class="spacer"></span>
+      <button class="link" id="settings">Settings</button>
+    </footer>
+  </div>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

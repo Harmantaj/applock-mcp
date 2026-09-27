@@ -1,0 +1,19 @@
+[data-applock-hidden] {
+  display: none !important;
+}
+[data-applock-reveal] {
+  position: relative;
+  opacity: 0.75;
+}
+[data-applock-reveal]::after {
+  content: "🔒";
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  pointer-events: none;
+}
+html[data-applock-locked] body {
+  overflow: hidden !important;
+}
