@@ -14,6 +14,8 @@ let server: Server;
 let base = "";
 
 test.beforeAll(async () => {
+  // SITE_URL=https://… runs the same checks against a live deployment.
+  if (process.env.SITE_URL) return void (base = process.env.SITE_URL.replace(/\/$/, ""));
   server = createServer((req, res) => {
     let p = decodeURIComponent(new URL(req.url ?? "/", "http://x").pathname);
     if (p.endsWith("/")) p += "index.html";
@@ -24,7 +26,7 @@ test.beforeAll(async () => {
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   base = `http://127.0.0.1:${(server.address() as any).port}`;
 });
-test.afterAll(() => server.close());
+test.afterAll(() => server?.close());
 
 async function load(page: Page) {
   const errors: string[] = [];
@@ -38,7 +40,7 @@ async function load(page: Page) {
 test("renders without errors and every local link and asset resolves", async ({ page, request }) => {
   const errors = await load(page);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Some chats are nobody else’s business.");
-  const urls = await page.$$eval("a[href^='/'], link[href^='/'], script[src^='/'], img[src^='/']", (els) =>
+  const urls = await page.$$eval("a[href]:not([href^='#']):not([href^='http']), link[href]:not([href^='http']), script[src], img[src]", (els) =>
     els.map((e) => (e as any).href || (e as any).src),
   );
   for (const u of new Set(urls)) expect((await request.get(u)).status(), u).toBe(200);
