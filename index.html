@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AppLock — Lock and hide AI chats</title>
+<meta name="description" content="Hide chosen ChatGPT, Claude, Gemini, Claude Code and Antigravity chats behind Touch ID or a password. A free MCP server and browser extension.">
+<meta name="theme-color" content="#E9EEF3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#10151E" media="(prefers-color-scheme: dark)">
+<meta property="og:title" content="AppLock — Lock and hide AI chats">
+<meta property="og:description" content="Touch ID for your AI chat history. Works with ChatGPT, Claude, Gemini, Claude Code and Antigravity.">
+<meta property="og:image" content="/icon-512.png">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <a class="brand" href="/" aria-label="AppLock home" translate="no"><img src="/favicon.svg" alt="" width="28" height="28"> AppLock</a>
+  <nav aria-label="Primary">
+    <a href="#how">How it works</a>
+    <a href="#install">Install</a>
+    <a href="#tools">Tools</a>
+    <a href="#security">Security</a>
+    <a href="https://github.com/Harmantaj/applock-mcp">GitHub</a>
+  </nav>
+</header>
+
+<main id="main">
+  <section class="hero">
+    <div class="hero-copy">
+      <h1>Some chats are nobody else’s business.</h1>
+      <p class="lede">AppLock hides the AI conversations you choose and locks them behind Touch ID or a password, like Locked Notes on your Mac. Whoever borrows your laptop sees every other chat, just not those.</p>
+      <p class="works">Works with ChatGPT, Claude, Gemini, Claude Code and Google Antigravity.</p>
+      <div class="cta">
+        <a class="button primary" href="#install">Install AppLock</a>
+        <a class="button" href="https://github.com/Harmantaj/applock-mcp">View the source</a>
+      </div>
+      <p class="fineprint">Free and open source. MIT licence. Your chats and keys never leave your computer.</p>
+    </div>
+
+    <figure class="demo" aria-label="Interactive demo of a chat sidebar">
+      <div class="window">
+        <div class="window-bar"><span></span><span></span><span></span><em>chatgpt.com</em></div>
+        <div class="window-body">
+          <aside class="side">
+            <p class="side-label">Today</p>
+            <ul id="demo-list">
+              <li data-id="1"><span class="t">Birthday gift ideas for Mum</span><button type="button" class="lockit" aria-label="Lock “Birthday gift ideas for Mum”">Lock</button></li>
+              <li data-id="2" class="sensitive"><span class="t">Therapy notes, week 6</span><button type="button" class="lockit" aria-label="Lock “Therapy notes, week 6”">Lock</button></li>
+              <li data-id="3"><span class="t">Fix the flaky login test</span><button type="button" class="lockit" aria-label="Lock “Fix the flaky login test”">Lock</button></li>
+              <li data-id="4" class="sensitive"><span class="t">Should I take the offer from Acme?</span><button type="button" class="lockit" aria-label="Lock “Should I take the offer from Acme?”">Lock</button></li>
+              <li data-id="5"><span class="t">Sourdough starter schedule</span><button type="button" class="lockit" aria-label="Lock “Sourdough starter schedule”">Lock</button></li>
+            </ul>
+          </aside>
+          <div class="pane" id="demo-pane">
+            <p class="pane-hint">Lock a chat in the sidebar. It disappears for anyone who isn’t you.</p>
+          </div>
+        </div>
+      </div>
+      <figcaption>
+        <span id="demo-status" role="status">2 chats visible that you probably want hidden.</span>
+        <button type="button" class="button small" id="demo-unlock" hidden>Unlock with Touch ID</button>
+        <button type="button" class="button small ghost" id="demo-relock" hidden>Lock again</button>
+      </figcaption>
+    </figure>
+  </section>
+
+  <section id="how" class="band">
+    <h2>Two pieces, one lock</h2>
+    <p class="section-lede">Web chats live on the provider’s servers, so no AI tool can remove them from ChatGPT’s sidebar on its own. AppLock pairs a browser extension, which does the hiding on the page, with an MCP server that encrypts local chat history and lets any AI assistant lock things for you.</p>
+
+    <div class="diagram" role="img" aria-label="Diagram: the AI assistant calls the AppLock MCP server; the server encrypts local sessions into the vault and asks the browser extension to lock web chats.">
+      <div class="node">
+        <h3>Your AI assistant</h3>
+        <p>Claude Code, Antigravity or ChatGPT. You say “lock this chat”.</p>
+      </div>
+      <div class="edge"><span>MCP tool call</span></div>
+      <div class="node strong">
+        <h3>AppLock MCP server</h3>
+        <p>Runs on your computer. Hides Claude Code and Antigravity sessions by encrypting them into the vault.</p>
+      </div>
+      <div class="edge"><span>localhost bridge, lock-only</span></div>
+      <div class="node">
+        <h3>AppLock extension</h3>
+        <p>Hides locked ChatGPT, Claude and Gemini chats and covers them with a lock screen.</p>
+      </div>
+    </div>
+
+    <div class="facts">
+      <div>
+        <h3>Hiding never needs your password</h3>
+        <p>Each session is sealed with the vault’s public key. Anyone, including the AI, can put things in. Only Touch ID or your passphrase can take them out.</p>
+      </div>
+      <div>
+        <h3>Your passphrase never goes near the AI</h3>
+        <p>When a tool needs the vault open, your Mac shows the Touch ID sheet, or a private page opens on 127.0.0.1. The model only learns “unlocked”.</p>
+      </div>
+      <div>
+        <h3>The AI can lock, never reveal</h3>
+        <p>The bridge between the MCP server and your browser only accepts lock commands. Showing a locked web chat always takes Touch ID or the password in the browser.</p>
+      </div>
+      <div>
+        <h3>It locks itself again</h3>
+        <p>Unlocking lasts a few minutes, then everything is hidden again. Restarting the browser or the AI client also locks it.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="install" class="band">
+    <h2>Install</h2>
+    <p class="section-lede">You need a Mac, Linux or Windows computer with <a href="https://nodejs.org">Node.js 20 or newer</a>, and Chrome, Edge, Brave or Arc for web chats. Touch ID works on Macs that have it; everywhere else you use the passphrase.</p>
+
+    <ol class="steps">
+      <li>
+        <h3>Install the MCP server</h3>
+        <pre><code>npm install -g github:Harmantaj/applock-mcp</code></pre>
+        <p>This adds the <code>applock-mcp</code> command.</p>
+      </li>
+      <li>
+        <h3>Create your vault</h3>
+        <pre><code>applock-mcp setup</code></pre>
+        <p>Choose a passphrase, and say yes to Touch ID if your Mac has it. The passphrase can’t be recovered, so store it somewhere safe.</p>
+      </li>
+      <li>
+        <h3>Connect your AI apps</h3>
+        <div class="tabs" data-tabs>
+          <div role="tablist" aria-label="AI app">
+            <button role="tab" id="tab-cc" aria-controls="panel-cc" aria-selected="true">Claude Code</button>
+            <button role="tab" id="tab-ag" aria-controls="panel-ag" aria-selected="false" tabindex="-1">Antigravity</button>
+            <button role="tab" id="tab-gpt" aria-controls="panel-gpt" aria-selected="false" tabindex="-1">ChatGPT</button>
+            <button role="tab" id="tab-other" aria-controls="panel-other" aria-selected="false" tabindex="-1">Other clients</button>
+          </div>
+          <div role="tabpanel" id="panel-cc" aria-labelledby="tab-cc">
+            <pre><code>applock-mcp install claude</code></pre>
+            <p>This runs <code>claude mcp add --scope user applock -- applock-mcp</code> for you. Start a new Claude Code session and try “hide my session about the billing refactor”, or “hide this session” to hide the one you’re in once it ends.</p>
+          </div>
+          <div role="tabpanel" id="panel-ag" aria-labelledby="tab-ag" hidden>
+            <pre><code>applock-mcp install antigravity</code></pre>
+            <p>This adds AppLock to <code>~/.gemini/config/mcp_config.json</code>, which Antigravity 2.0, the IDE and the CLI share. In the agent panel open <strong>…</strong> › <strong>Manage MCPs</strong> › <strong>Refresh</strong>.</p>
+          </div>
+          <div role="tabpanel" id="panel-gpt" aria-labelledby="tab-gpt" hidden>
+            <p>ChatGPT only connects to MCP servers on the internet, so run AppLock over HTTP and open a free tunnel to it. Developer mode is available on Plus, Pro, Business, Enterprise and Education plans on the web.</p>
+            <pre><code>applock-mcp serve --http --port 8787</code></pre>
+            <pre><code>brew install cloudflared
+cloudflared tunnel --url http://localhost:8787</code></pre>
+            <p>In ChatGPT open <strong>Settings</strong> › <strong>Apps &amp; Connectors</strong> › <strong>Advanced</strong>, turn on <strong>Developer mode</strong>, then create a connector. Paste your tunnel address followed by the secret path that <code>applock-mcp install chatgpt</code> prints (it looks like <code>/mcp/k3v…</code>), and choose <strong>No authentication</strong>. The secret path is the password for the connector, so don’t share it.</p>
+          </div>
+          <div role="tabpanel" id="panel-other" aria-labelledby="tab-other" hidden>
+            <p>Any MCP client that can start a local command works. Add this to its MCP configuration:</p>
+            <pre><code>{
+  "mcpServers": {
+    "applock": { "command": "applock-mcp" }
+  }
+}</code></pre>
+          </div>
+        </div>
+      </li>
+      <li>
+        <h3>Add the browser extension</h3>
+        <p><a class="button small" href="/applock-extension.zip" download>Download the extension (.zip, 30 KB)</a></p>
+        <p>Unzip it. In Chrome open <code>chrome://extensions</code>, turn on <strong>Developer mode</strong>, choose <strong>Load unpacked</strong> and select the unzipped folder. AppLock opens its setup page: pick a password and turn on Touch ID.</p>
+        <p>To lock a chat, open it and click the AppLock icon, right-click it in the sidebar, or press <kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>L</kbd>. Press <kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>K</kbd> to hide everything again.</p>
+      </li>
+    </ol>
+  </section>
+
+  <section id="tools" class="band">
+    <h2>What the AI can do</h2>
+    <p class="section-lede">Ten MCP tools. Tools that only read are marked read-only, so ChatGPT won’t ask you to confirm them.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Tool</th><th scope="col">What it does</th><th scope="col">Needs unlock</th></tr></thead>
+        <tbody>
+          <tr><td><code>applock_status</code></td><td>Locked or unlocked, how many chats are hidden, and whether the extension is connected.</td><td>No</td></tr>
+          <tr><td><code>list_sessions</code></td><td>Lists visible Claude Code and Antigravity sessions with their titles, newest first.</td><td>No</td></tr>
+          <tr><td><code>hide_session</code></td><td>Encrypts a session into the vault and removes it from history. Use <code>current</code> for the session you’re in; it’s hidden when the session ends.</td><td>No</td></tr>
+          <tr><td><code>list_browser_chats</code></td><td>Lists ChatGPT, Claude and Gemini chats in your browser sidebar, and which one is open.</td><td>No</td></tr>
+          <tr><td><code>hide_browser_chat</code></td><td>Locks a web chat through the extension. Use <code>current</code> for the chat that’s open.</td><td>No</td></tr>
+          <tr><td><code>unlock_vault</code></td><td>Shows Touch ID, or opens the passphrase page on your computer.</td><td>—</td></tr>
+          <tr><td><code>lock_vault</code></td><td>Locks the vault and the browser straight away.</td><td>No</td></tr>
+          <tr><td><code>list_hidden</code></td><td>Lists everything in the vault.</td><td>Yes</td></tr>
+          <tr><td><code>read_hidden</code></td><td>Reads a hidden session’s transcript without restoring it. The text then appears in the current chat.</td><td>Yes</td></tr>
+          <tr><td><code>restore_hidden</code></td><td>Puts a hidden session back where it was.</td><td>Yes</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Prefer the terminal? <code>applock-mcp list</code>, <code>hide</code>, <code>hidden</code>, <code>restore</code>, <code>passwd</code> and <code>touchid on|off</code> do the same without an AI.</p>
+  </section>
+
+  <section id="security" class="band">
+    <h2>What it protects, and what it doesn’t</h2>
+    <div class="split">
+      <div class="yes">
+        <h3>Protects against</h3>
+        <ul>
+          <li>Someone using your unlocked Mac or browser and scrolling through your chat history.</li>
+          <li>Anyone opening a locked chat from a link, bookmark or browser history. They get the lock screen, and the tab title reads “Locked chat”.</li>
+          <li>Reading hidden Claude Code or Antigravity sessions from disk. They are encrypted with X25519 and AES-256-GCM, and the key is wrapped with scrypt.</li>
+        </ul>
+      </div>
+      <div class="no">
+        <h3>Doesn’t protect against</h3>
+        <ul>
+          <li>The provider. ChatGPT, Claude and Gemini still store web chats on their servers.</li>
+          <li>Your account on another device or browser profile. Locks apply only to this browser profile.</li>
+          <li>Malware running as you, or someone with developer tools open on your extension.</li>
+          <li>Titles in the Claude desktop app’s own session list, which it keeps separately. The contents are still encrypted.</li>
+        </ul>
+      </div>
+    </div>
+    <details>
+      <summary>How the vault works</summary>
+      <p><code>applock-mcp setup</code> creates an X25519 key pair in <code>~/.applock</code>. Hiding a session compresses its files and seals them to the public key with an ephemeral key exchange, HKDF-SHA256 and AES-256-GCM, then deletes the originals, but only after the sealed copy is on disk. The private key is stored encrypted with a key derived from your passphrase by scrypt (N = 2¹⁷). If you turn on Touch ID, a copy sits in your macOS Keychain, and a small Swift helper releases it only after a successful Touch ID check. Unlocking keeps the key in memory for your auto-lock time, then wipes it.</p>
+    </details>
+    <details>
+      <summary>How the extension decides who you are</summary>
+      <p>The password is stretched with PBKDF2-SHA256 (600,000 rounds) and compared in constant time; five wrong tries start an escalating lockout. Touch ID uses WebAuthn with your Mac’s built-in authenticator. AppLock checks the challenge and the user-verification flag, and verifies the signature against the public key saved when you enrolled.</p>
+    </details>
+  </section>
+
+  <section id="faq" class="band">
+    <h2>Questions</h2>
+    <details>
+      <summary>I forgot my passphrase. Can I get my chats back?</summary>
+      <p>Not the hidden Claude Code or Antigravity sessions. The encryption is real, and there is no back door. With Touch ID on you can still unlock and run <code>applock-mcp passwd</code> to set a new one. For the extension, remove and reinstall it; your locked web chats simply become visible again.</p>
+    </details>
+    <details>
+      <summary>Why doesn’t the chat disappear from ChatGPT on my phone?</summary>
+      <p>Because it still exists in your OpenAI account. AppLock hides chats in this browser; it never deletes or edits anything on the provider’s side.</p>
+    </details>
+    <details>
+      <summary>Can I hide the Claude Code session I’m in right now?</summary>
+      <p>Yes. Ask Claude to “hide this session”. Claude Code keeps writing the file until the session ends, so AppLock waits until you exit, then encrypts the whole transcript in one go, including the last lines Claude Code writes on the way out.</p>
+    </details>
+    <details>
+      <summary>Is the ChatGPT connector safe to expose through a tunnel?</summary>
+      <p>The address contains a long random secret, and nothing in the vault can be read without Touch ID or your passphrase on your own computer. Still, only run the tunnel while you use it, and remember that anything you ask ChatGPT to read with <code>read_hidden</code> is sent to OpenAI.</p>
+    </details>
+    <details>
+      <summary>Why isn’t the extension in the Chrome Web Store?</summary>
+      <p>Publishing needs a developer account. Until then, loading it unpacked works in every Chromium browser, and you can read every line of it first.</p>
+    </details>
+  </section>
+</main>
+
+<footer class="foot">
+  <p>AppLock is an independent open-source project and isn’t affiliated with OpenAI, Anthropic or Google. <a href="https://github.com/Harmantaj/applock-mcp">Source on GitHub</a> · MIT licence.</p>
+</footer>
+
+<script src="/site.js" defer></script>
+</body>
+</html>
