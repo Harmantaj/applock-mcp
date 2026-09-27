@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unlock chat — AppLock</title>
+  <link rel="stylesheet" href="ui.css">
+  <style>
+    body { display: grid; place-items: center; min-height: 100vh; background: transparent; }
+    .box { width: min(360px, 100%); background: var(--bg); border-radius: 20px; padding: 28px 24px 22px; text-align: center; }
+    form { display: grid; gap: 10px; margin-top: 18px; }
+    #touch { width: 100%; }
+    .sep { font-size: 12px; margin: 4px 0; }
+  </style>
+</head>
+<body>
+  <main class="box">
+    <div class="lockglyph" aria-hidden="true">🔒</div>
+    <h1 style="margin-top:10px">This chat is locked</h1>
+    <p class="muted" style="margin-top:6px">Unlock to view your locked chats for a few minutes.</p>
+    <form id="form" autocomplete="off">
+      <button type="button" id="touch" class="primary" hidden>Unlock with Touch ID</button>
+      <p class="sep muted" id="or" hidden>or use your password</p>
+      <label for="pw" class="muted" style="text-align:left;font-size:12px">Password</label>
+      <input id="pw" type="password" autocomplete="current-password" spellcheck="false" required>
+      <button type="submit" id="submit">Unlock</button>
+      <div class="error" id="err" role="alert" aria-live="polite"></div>
+    </form>
+    <button type="button" class="link" id="back">Go back to all chats</button>
+  </main>
+  <script type="module" src="unlock.js"></script>
+</body>
+</html>

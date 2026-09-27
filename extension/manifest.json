@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "AppLock — Lock & Hide AI Chats",
+  "short_name": "AppLock",
+  "version": "0.1.0",
+  "description": "Hide chosen ChatGPT, Claude and Gemini chats from the sidebar and lock them behind Touch ID or a password.",
+  "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" },
+  "permissions": ["storage", "alarms", "contextMenus"],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://claude.ai/*",
+    "https://gemini.google.com/*",
+    "http://127.0.0.1:47521/*"
+  ],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": { "default_popup": "popup.html", "default_title": "AppLock", "default_icon": { "16": "icons/16.png", "32": "icons/32.png" } },
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*", "https://claude.ai/*", "https://gemini.google.com/*"],
+      "js": ["sites.js", "content.js"],
+      "css": ["content.css"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["unlock.html", "unlock.js", "auth.js", "ui.css"],
+      "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*", "https://claude.ai/*", "https://gemini.google.com/*"]
+    }
+  ],
+  "commands": {
+    "lock-current": { "suggested_key": { "default": "Alt+Shift+L" }, "description": "Lock the chat that is open" },
+    "relock": { "suggested_key": { "default": "Alt+Shift+K" }, "description": "Hide all locked chats again now" }
+  }
+}
