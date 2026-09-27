@@ -3,7 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { execFileSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer as createHttpServer } from "node:http";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -11,12 +11,13 @@ import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { resetBridge, startBridge } from "./bridge.js";
 import { applockHome, BRIDGE_PORT } from "./paths.js";
+import { handleUnlockLink } from "./unlock.js";
 import { createServer, sweepPending, VERSION } from "./server.js";
 import { findSession, listSessions } from "./sources.js";
 import { deleteKey, retrieveKey, storeKey, touchIdAvailable, touchIdSupported } from "./touchid.js";
 import { changePassphrase, createVault, findHidden, hiddenCount, hideSession, listHidden, loadConfig, loadPending, privateKeyFromPassphrase, restoreHidden, saveConfig, } from "./vault.js";
 // Until it's on npm, the package installs straight from GitHub.
-const PACKAGE_SPEC = process.env.APPLOCK_PACKAGE ?? "https://github.com/Harmantaj/applock-mcp/releases/download/v0.2.0/applock-mcp-0.2.0.tgz";
+const PACKAGE_SPEC = process.env.APPLOCK_PACKAGE ?? "https://github.com/Harmantaj/applock-mcp/releases/download/v0.3.0/applock-mcp-0.3.0.tgz";
 const argv = process.argv.slice(2);
 const INFO_FLAGS = ["--version", "-v", "--help", "-h"];
 const cmd = argv[0] && (!argv[0].startsWith("-") || INFO_FLAGS.includes(argv[0])) ? argv[0] : "serve";
@@ -123,17 +124,32 @@ function httpSecret() {
     writeFileSync(p, s, { mode: 0o600 });
     return s;
 }
+function publicUrlOpt() {
+    const u = opt("public-url") ?? process.env.APPLOCK_PUBLIC_URL;
+    if (!u)
+        return undefined;
+    if (!/^https:\/\//.test(u))
+        throw new Error("--public-url must start with https://");
+    return u.replace(/\/$/, "");
+}
 async function serveHttp() {
     const port = Number(opt("port") ?? 8787);
     const host = opt("host") ?? "127.0.0.1";
     const secret = httpSecret();
+    const publicUrl = publicUrlOpt();
     sweepPending();
     await startBridge();
     const http = createHttpServer(async (req, res) => {
         const url = new URL(req.url ?? "/", "http://x");
         if (url.pathname === "/health")
             return void res.writeHead(200, { "content-type": "text/plain" }).end("ok");
-        // ChatGPT connectors support "no auth", so the unguessable path is the credential.
+        if (url.pathname.startsWith("/unlock/")) {
+            const cfg = loadConfig();
+            if (cfg && (await handleUnlockLink(cfg, url.pathname.slice(8), req, res)))
+                return;
+            return void res.writeHead(404, { "content-type": "text/plain" }).end("This unlock link has expired. Ask for a new one.");
+        }
+        // Remote connectors support "no auth", so the unguessable path is the credential.
         if (url.pathname !== `/mcp/${secret}`)
             return void res.writeHead(404).end();
         let body;
@@ -148,8 +164,8 @@ async function serveHttp() {
                 return void res.writeHead(400).end();
             }
         }
-        // Stateless: a fresh server + transport per request.
-        const server = createServer();
+        // Stateless: a fresh server + transport per request; unlock state is process-wide.
+        const server = createServer({ publicUrl });
         const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
         res.on("close", () => {
             transport.close();
@@ -160,9 +176,82 @@ async function serveHttp() {
     });
     http.listen(port, host, () => {
         console.error(`AppLock MCP (Streamable HTTP) listening on http://${host}:${port}/mcp/${secret}`);
-        console.error(`Expose it to ChatGPT with:  cloudflared tunnel --url http://localhost:${port}`);
-        console.error(`then use  https://<your-tunnel>.trycloudflare.com/mcp/${secret}  as the connector URL.`);
+        if (publicUrl)
+            console.error(`Connector URL: ${publicUrl}/mcp/${secret}`);
+        else {
+            console.error(`Expose it with a tunnel, e.g.  tailscale funnel --bg ${port}`);
+            console.error(`then restart with --public-url https://<your-tunnel-host> so phone unlock links work.`);
+        }
     });
+}
+// ---- remote service (launchd) -------------------------------------------------------
+const AGENT_LABEL = "com.applock.mcp.remote";
+const agentPath = () => join(homedir(), "Library", "LaunchAgents", `${AGENT_LABEL}.plist`);
+function xml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+/** Keeps `serve --http` running in the background (macOS launchd), restarting it on login. */
+function installRemote() {
+    if (process.platform !== "darwin")
+        throw new Error("install remote uses launchd and is macOS-only. Run `applock-mcp serve --http --public-url …` under your own service manager.");
+    const publicUrl = publicUrlOpt();
+    if (!publicUrl)
+        throw new Error("Pass your tunnel address, e.g.  applock-mcp install remote --public-url https://my-mac.tailnet-name.ts.net");
+    if (!loadConfig())
+        throw new Error("Run  applock-mcp setup  first.");
+    const port = opt("port") ?? "8787";
+    const node = onPath("node") ?? process.execPath;
+    const args = [node, fileURLToPath(import.meta.url), "serve", "--http", "--port", port, "--public-url", publicUrl];
+    const log = join(applockHome(), "remote.log");
+    const plist = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>${AGENT_LABEL}</string>
+  <key>ProgramArguments</key>
+  <array>${args.map((a) => `<string>${xml(a)}</string>`).join("")}</array>
+  <key>EnvironmentVariables</key>
+  <dict><key>APPLOCK_HOME</key><string>${xml(applockHome())}</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardErrorPath</key><string>${xml(log)}</string>
+  <key>StandardOutPath</key><string>${xml(log)}</string>
+</dict>
+</plist>
+`;
+    mkdirSync(dirname(agentPath()), { recursive: true });
+    const domain = `gui/${process.getuid?.()}`;
+    try {
+        execFileSync("launchctl", ["bootout", `${domain}/${AGENT_LABEL}`], { stdio: "ignore" });
+    }
+    catch { }
+    writeFileSync(agentPath(), plist);
+    execFileSync("launchctl", ["bootstrap", domain, agentPath()], { stdio: "inherit" });
+    console.error(`✓ AppLock now runs in the background on port ${port} (log: ${log}).`);
+    console.error(`\nAdd this as a custom connector in Claude (claude.ai › Settings › Connectors › Add custom connector):\n\n  ${publicUrl}/mcp/${httpSecret()}\n`);
+    console.error("Treat that URL like a password. `applock-mcp remote rotate` issues a new one.");
+}
+function uninstallRemote() {
+    try {
+        execFileSync("launchctl", ["bootout", `gui/${process.getuid?.()}/${AGENT_LABEL}`], { stdio: "ignore" });
+    }
+    catch { }
+    rmSync(agentPath(), { force: true });
+    console.error("✓ Background AppLock service removed.");
+}
+function rotateSecret() {
+    const p = join(applockHome(), "http-secret");
+    rmSync(p, { force: true });
+    const s = httpSecret();
+    console.error("✓ New connector secret created. The old connector URL no longer works.");
+    if (existsSync(agentPath())) {
+        execFileSync("launchctl", ["kickstart", "-k", `gui/${process.getuid?.()}/${AGENT_LABEL}`], { stdio: "ignore" });
+        const url = readFileSync(agentPath(), "utf8").match(/--public-url<\/string><string>([^<]+)</)?.[1];
+        if (url)
+            console.error(`New connector URL:\n\n  ${url}/mcp/${s}\n`);
+    }
+    else
+        console.error(`New path: /mcp/${s}`);
 }
 /** Waits until every pending session's files stop changing, then hides them. */
 async function finishPending() {
@@ -212,9 +301,11 @@ async function setup() {
         saveConfig({ ...cfg, touchId: true });
     }
     console.error(`\n✓ Vault created at ${applockHome()} (Touch ID: ${touch ? "on" : "off"}, auto-lock ${minutes} min).`);
-    console.error("Next: applock-mcp install claude   |   applock-mcp install antigravity   |   applock-mcp install chatgpt");
+    console.error("Next: applock-mcp install claude   |   applock-mcp install antigravity   |   applock-mcp install phone");
 }
 function installClient(client) {
+    if (client === "remote")
+        return installRemote();
     const self = selfCommand();
     if (client === "claude" || client === "claude-code") {
         const args = ["mcp", "add", "--scope", "user", "applock", "--", self.command, ...self.args];
@@ -239,17 +330,19 @@ function installClient(client) {
         console.error(`✓ Added "applock" to ${p}. Reload MCP servers in Antigravity (Agent panel ▸ … ▸ Manage MCPs ▸ Refresh).`);
         return;
     }
-    if (client === "chatgpt") {
-        console.error(`ChatGPT only talks to remote MCP servers. Run these two in separate terminals:
+    if (client === "chatgpt" || client === "chatgpt-web" || client === "phone") {
+        console.error(`Phones (Claude app) and ChatGPT on the web reach AppLock through a public HTTPS address.
 
-  applock-mcp serve --http --port 8787
-  cloudflared tunnel --url http://localhost:8787
+  1. brew install --cask tailscale-app      (open it and sign in)
+  2. tailscale funnel --bg 8787             (approve Funnel the first time)
+  3. applock-mcp install remote --public-url https://<your-mac>.<tailnet>.ts.net
 
-Then in ChatGPT: Settings ▸ Apps & Connectors ▸ Advanced ▸ enable Developer mode,
-Create ▸ paste https://<tunnel>.trycloudflare.com/mcp/${httpSecret()} ▸ Authentication: No authentication.`);
+Step 3 prints the connector URL. Add it in Claude (claude.ai › Settings › Connectors ›
+Add custom connector) or ChatGPT web (Settings › Apps & Connectors › Advanced ›
+Developer mode, no authentication). ChatGPT's phone apps can't use custom connectors.`);
         return;
     }
-    console.error("Usage: applock-mcp install <claude|antigravity|chatgpt>");
+    console.error("Usage: applock-mcp install <claude|antigravity|phone|remote>");
     process.exit(1);
 }
 const HELP = `applock-mcp ${VERSION} — lock and hide AI chats
@@ -257,7 +350,11 @@ const HELP = `applock-mcp ${VERSION} — lock and hide AI chats
   setup                 create the encrypted vault (passphrase + optional Touch ID)
   install <client>      register with claude | antigravity | chatgpt
   serve                 run the MCP server on stdio (what clients launch)
-  serve --http          run over Streamable HTTP for ChatGPT (--port 8787)
+  serve --http          run over Streamable HTTP (--port 8787, --public-url https://…)
+  install remote        keep the HTTP server running for phone/web connectors (macOS,
+                        --public-url https://your-mac.your-tailnet.ts.net)
+  uninstall remote      stop and remove that background service
+  remote rotate         issue a new connector URL secret
   status                show vault state
   list                  list visible Claude Code / Antigravity sessions
   hide <id>             hide a session
@@ -341,6 +438,14 @@ async function main() {
             }
             return;
         }
+        case "uninstall":
+            if (argv[1] === "remote")
+                return uninstallRemote();
+            throw new Error("Usage: applock-mcp uninstall remote");
+        case "remote":
+            if (argv[1] === "rotate")
+                return rotateSecret();
+            throw new Error("Usage: applock-mcp remote rotate");
         case "bridge-reset":
             resetBridge();
             console.log("Browser extension un-paired. The next extension to connect will be paired.");

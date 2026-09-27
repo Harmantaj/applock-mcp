@@ -14,23 +14,24 @@ ChatGPT, Claude.ai and Gemini keep chats on their servers. An MCP server only gi
 ## Install
 
 ```bash
-npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.2.0/applock-mcp-0.2.0.tgz
+npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.3.0/applock-mcp-0.3.0.tgz
 applock-mcp setup                 # passphrase + optional Touch ID
 applock-mcp install claude        # or: antigravity | chatgpt
 ```
 
 Browser extension: download `applock-extension.zip` from the website (or use the `extension/` folder), open `chrome://extensions`, enable Developer mode, **Load unpacked**.
 
-### ChatGPT
+### Claude on your phone (and ChatGPT on the web)
 
-ChatGPT only connects to remote MCP servers:
+Claude's iPhone/Android apps can use custom connectors added on claude.ai; ChatGPT allows them only on the web. Give your Mac a permanent HTTPS address with Tailscale Funnel, then keep AppLock running in the background:
 
 ```bash
-applock-mcp serve --http --port 8787
-cloudflared tunnel --url http://localhost:8787
+brew install --cask tailscale-app          # open it and sign in
+tailscale funnel --bg 8787                 # approve Funnel the first time
+applock-mcp install remote --public-url https://<your-mac>.<tailnet>.ts.net
 ```
 
-Then in ChatGPT: Settings › Apps & Connectors › Advanced › Developer mode › create a connector with `https://<tunnel>/mcp/<secret>` (the secret path is printed by `applock-mcp install chatgpt`), no authentication.
+Add the printed connector URL on claude.ai › Settings › Connectors › Add custom connector (or in ChatGPT web: Settings › Apps & Connectors › Advanced › Developer mode, no authentication). From a phone, `unlock_vault` returns a one-time link to your Mac's unlock page, so the passphrase never passes through the AI. It still can't hide chats inside the phone apps; it's a remote control for your Mac, which must be awake.
 
 ## Tools
 
@@ -41,7 +42,7 @@ Then in ChatGPT: Settings › Apps & Connectors › Advanced › Developer mode 
 | `hide_session` | Encrypt a session into the vault (`current` = when this session ends) | no |
 | `list_browser_chats` | Web chats seen by the extension | no |
 | `hide_browser_chat` | Lock a web chat (`current` = the open one) | no |
-| `unlock_vault` | Touch ID prompt or local passphrase page | — |
+| `unlock_vault` | Touch ID prompt, local passphrase page, or (remote) a one-time unlock link | — |
 | `lock_vault` | Lock now | no |
 | `list_hidden` | Everything in the vault | yes |
 | `read_hidden` | Read a hidden transcript | yes |

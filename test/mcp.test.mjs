@@ -163,3 +163,36 @@ test("Streamable HTTP transport (ChatGPT) serves the same tools behind the secre
     proc.kill();
   }
 });
+
+test("remote (phone) unlock: one-time link on the public URL, passphrase never in the tool call", async () => {
+  const port = String(30000 + Math.floor(Math.random() * 9000));
+  const proc = spawn(process.execPath, [CLI, "serve", "--http", "--port", port, "--public-url", `http://127.0.0.1:${port}`.replace("http:", "https:")], {
+    env: { ...env, APPLOCK_BRIDGE_PORT: "1" },
+  });
+  let log = "";
+  proc.stderr.on("data", (d) => (log += d));
+  for (let i = 0; i < 50 && !log.includes("Connector URL"); i++) await new Promise((r) => setTimeout(r, 100));
+  const local = log.match(/(http:\/\/127\.0\.0\.1:\d+\/mcp\/\S+)/)[1];
+  assert.match(log, new RegExp(`Connector URL: https://127\\.0\\.0\\.1:${port}/mcp/`));
+  try {
+    const c = new Client({ name: "claude-phone-sim", version: "1" });
+    await c.connect(new StreamableHTTPClientTransport(new URL(local)));
+    const r = await c.callTool({ name: "unlock_vault", arguments: {} });
+    const link = r.content[0].text.match(/https:\/\/\S+\/unlock\/\S+/)[0];
+    // The public URL is https (the tunnel); talk to the same server locally.
+    const direct = link.replace("https:", "http:");
+    assert.equal((await fetch(direct)).status, 200);
+    assert.equal((await fetch(direct.replace(/unlock\/.+$/, "unlock/forged"))).status, 404);
+    const form = (p) => ({ method: "POST", body: `passphrase=${p}`, headers: { "content-type": "application/x-www-form-urlencoded" } });
+    assert.match(await (await fetch(direct, form("nope"))).text(), /Wrong passphrase/);
+    assert.match(await (await fetch(direct, form("hunter22"))).text(), /Unlocked/);
+    assert.equal((await fetch(direct)).status, 404, "link is single-use");
+    const st = await c.callTool({ name: "applock_status", arguments: {} });
+    assert.match(st.content[0].text, /Vault: unlocked until/);
+    const hidden = await c.callTool({ name: "list_hidden", arguments: {} });
+    assert.equal(!!hidden.isError, false);
+    await c.close();
+  } finally {
+    proc.kill();
+  }
+});
