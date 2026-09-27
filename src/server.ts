@@ -3,7 +3,7 @@ import { z } from "zod";
 import { enqueue, extensionConnected, readState, waitForResult } from "./bridge.js";
 import { findSession, listSessions, type Session } from "./sources.js";
 import { touchIdSupported } from "./touchid.js";
-import { currentKey, lock, unlockedUntil, unlockWithBrowser, unlockWithTouchId } from "./unlock.js";
+import { createUnlockLink, currentKey, lock, unlockedUntil, unlockWithBrowser, unlockWithTouchId } from "./unlock.js";
 import {
   findHidden,
   hiddenCount,
@@ -18,7 +18,7 @@ import {
   type Config,
 } from "./vault.js";
 
-export const VERSION = "0.2.0";
+export const VERSION = "0.3.0";
 
 const INSTRUCTIONS = `AppLock hides private chats. Hiding never needs unlocking. Listing, reading or restoring hidden chats needs unlock_vault, which shows a Touch ID prompt or opens a passphrase page on the user's computer; never ask the user to type their passphrase into chat. For ChatGPT/Claude/Gemini web chats, use hide_browser_chat (needs the AppLock browser extension). Do not repeat hidden chat contents unless the user asks.`;
 
@@ -27,7 +27,7 @@ const fail = (t: string) => ({ content: [{ type: "text" as const, text: t }], is
 
 function requireConfig(): Config {
   const cfg = loadConfig();
-  if (!cfg) throw new Error("AppLock is not set up yet. In a terminal, run:  applock-mcp setup  (install: npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.2.0/applock-mcp-0.2.0.tgz)");
+  if (!cfg) throw new Error("AppLock is not set up yet. In a terminal, run:  applock-mcp setup  (install: npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.3.0/applock-mcp-0.3.0.tgz)");
   return cfg;
 }
 
@@ -68,7 +68,12 @@ export function sweepPending(opts: { includeCurrent?: boolean } = {}): string[] 
   return done;
 }
 
-export function createServer(): McpServer {
+export interface ServerOptions {
+  /** Public HTTPS base URL when serving remote clients (e.g. the Claude phone app). */
+  publicUrl?: string;
+}
+
+export function createServer(opts: ServerOptions = {}): McpServer {
   const server = new McpServer({ name: "applock", version: VERSION }, { instructions: INSTRUCTIONS });
 
   const safely =
@@ -212,16 +217,31 @@ export function createServer(): McpServer {
     "unlock_vault",
     {
       title: "Unlock the vault",
-      description:
-        "Unlocks hidden chats for a few minutes. Shows the Touch ID prompt on the user's Mac, or opens a local passphrase page in their browser. The user authenticates on their own device; never ask for the passphrase in chat. Waits up to 2 minutes.",
+      description: opts.publicUrl
+        ? "Unlocks hidden chats for a few minutes. Returns a one-time link (valid 5 minutes) the user opens on their phone or any browser to type their passphrase; it goes straight to their computer, never through the AI. After they say it's done, call applock_status to confirm. Method touchid shows Touch ID on the computer instead. Never ask for the passphrase in chat."
+        : "Unlocks hidden chats for a few minutes. Shows the Touch ID prompt on the user's Mac, or opens a local passphrase page in their browser. The user authenticates on their own device; never ask for the passphrase in chat. Waits up to 2 minutes.",
       inputSchema: {
-        method: z.enum(["auto", "touchid", "passphrase"]).default("auto").describe("auto uses Touch ID when enabled, otherwise the passphrase page"),
+        method: z
+          .enum(["auto", "touchid", "passphrase", "link"])
+          .default("auto")
+          .describe(
+            opts.publicUrl
+              ? "auto and link return a one-time unlock link; touchid prompts on the computer"
+              : "auto uses Touch ID when enabled, otherwise the passphrase page",
+          ),
       },
       annotations: { readOnlyHint: true },
     },
     safely(async ({ method }) => {
       const cfg = requireConfig();
       if (currentKey()) return text(`Already unlocked until ${unlockedUntil()}.`);
+      if (opts.publicUrl && (method === "auto" || method === "link")) {
+        const url = createUnlockLink(opts.publicUrl);
+        return text(
+          `Ask the user to open this one-time link and enter their AppLock passphrase there (it expires in 5 minutes):\n${url}\nThe passphrase goes directly to their computer. Once they confirm, call applock_status.`,
+        );
+      }
+      if (method === "link") return fail("Unlock links need the HTTP server with --public-url.");
       const useTouch = method === "touchid" || (method === "auto" && cfg.touchId && touchIdSupported());
       if (useTouch) {
         try {

@@ -119,7 +119,7 @@
     <ol class="steps">
       <li>
         <h3>Install the MCP server</h3>
-        <pre><code>npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.2.0/applock-mcp-0.2.0.tgz</code></pre>
+        <pre><code>npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.3.0/applock-mcp-0.3.0.tgz</code></pre>
         <p>This adds the <code>applock-mcp</code> command.</p>
       </li>
       <li>
@@ -133,7 +133,8 @@
           <div role="tablist" aria-label="AI app">
             <button role="tab" id="tab-cc" aria-controls="panel-cc" aria-selected="true">Claude Code</button>
             <button role="tab" id="tab-ag" aria-controls="panel-ag" aria-selected="false" tabindex="-1">Antigravity</button>
-            <button role="tab" id="tab-gpt" aria-controls="panel-gpt" aria-selected="false" tabindex="-1">ChatGPT</button>
+            <button role="tab" id="tab-phone" aria-controls="panel-phone" aria-selected="false" tabindex="-1">Claude on your phone</button>
+            <button role="tab" id="tab-gpt" aria-controls="panel-gpt" aria-selected="false" tabindex="-1">ChatGPT (web)</button>
             <button role="tab" id="tab-other" aria-controls="panel-other" aria-selected="false" tabindex="-1">Other clients</button>
           </div>
           <div role="tabpanel" id="panel-cc" aria-labelledby="tab-cc">
@@ -144,12 +145,23 @@
             <pre><code>applock-mcp install antigravity</code></pre>
             <p>This adds AppLock to <code>~/.gemini/config/mcp_config.json</code>, which Antigravity 2.0, the IDE and the CLI share. In the agent panel open <strong>…</strong> › <strong>Manage MCPs</strong> › <strong>Refresh</strong>.</p>
           </div>
+          <div role="tabpanel" id="panel-phone" aria-labelledby="tab-phone" hidden>
+            <p>Use AppLock from the Claude app on iPhone or Android as a custom connector. It’s a remote control for your Mac: lock everything now, hide a Claude Code session, or lock a ChatGPT chat in your Mac’s Chrome. It can’t hide chats inside the phone apps themselves, and your Mac needs to be awake and online.</p>
+            <p><strong>1. Get a permanent HTTPS address with Tailscale Funnel</strong> (free). Install Tailscale, open it and sign in:</p>
+            <pre><code>brew install --cask tailscale-app</code></pre>
+            <p>Then share AppLock’s port. The first time, Tailscale prints a link to turn on Funnel for your account; open it and approve.</p>
+            <pre><code>tailscale funnel --bg 8787</code></pre>
+            <p>If <code>tailscale</code> isn’t found, use <code>/Applications/Tailscale.app/Contents/MacOS/Tailscale</code> instead. Note the address it prints, like <code>https://my-mac.tail1234.ts.net</code>.</p>
+            <p><strong>2. Keep AppLock running in the background</strong> with that address:</p>
+            <pre><code>applock-mcp install remote --public-url https://my-mac.tail1234.ts.net</code></pre>
+            <p>It prints your connector URL, ending in a long secret. Treat it like a password; <code>applock-mcp remote rotate</code> replaces it.</p>
+            <p><strong>3. Add it to Claude.</strong> On <a href="https://claude.ai/settings/connectors">claude.ai › Settings › Connectors</a> in a browser, choose <strong>Add custom connector</strong>, name it AppLock and paste the connector URL. It then shows up in the Claude app on your phone; turn it on from the tools menu in a chat.</p>
+            <p>To unlock from your phone, ask Claude to unlock AppLock. It replies with a one-time link to your Mac’s unlock page (valid 5 minutes). Your passphrase goes from your phone’s browser straight to your Mac and never through Claude.</p>
+            <p>ChatGPT’s phone apps don’t support custom connectors; OpenAI only allows them in ChatGPT on the web.</p>
+          </div>
           <div role="tabpanel" id="panel-gpt" aria-labelledby="tab-gpt" hidden>
-            <p>ChatGPT only connects to MCP servers on the internet, so run AppLock over HTTP and open a free tunnel to it. Developer mode is available on Plus, Pro, Business, Enterprise and Education plans on the web.</p>
-            <pre><code>applock-mcp serve --http --port 8787</code></pre>
-            <pre><code>brew install cloudflared
-cloudflared tunnel --url http://localhost:8787</code></pre>
-            <p>In ChatGPT open <strong>Settings</strong> › <strong>Apps &amp; Connectors</strong> › <strong>Advanced</strong>, turn on <strong>Developer mode</strong>, then create a connector. Paste your tunnel address followed by the secret path that <code>applock-mcp install chatgpt</code> prints (it looks like <code>/mcp/k3v…</code>), and choose <strong>No authentication</strong>. The secret path is the password for the connector, so don’t share it.</p>
+            <p>ChatGPT connects to MCP servers only on the web (chatgpt.com), with Developer mode on a Plus, Pro, Business, Enterprise or Education plan. Its phone apps can’t use custom connectors.</p>
+            <p>Set up the permanent address from the <strong>Claude on your phone</strong> tab (steps 1 and 2), then in ChatGPT open <strong>Settings</strong> › <strong>Apps &amp; Connectors</strong> › <strong>Advanced</strong>, turn on <strong>Developer mode</strong>, create a connector, paste the same connector URL and choose <strong>No authentication</strong>.</p>
           </div>
           <div role="tabpanel" id="panel-other" aria-labelledby="tab-other" hidden>
             <p>Any MCP client that can start a local command works. Add this to its MCP configuration:</p>
@@ -183,7 +195,7 @@ cloudflared tunnel --url http://localhost:8787</code></pre>
           <tr><td><code>hide_session</code></td><td>Encrypts a session into the vault and removes it from history. Use <code>current</code> for the session you’re in; it’s hidden when the session ends.</td><td>No</td></tr>
           <tr><td><code>list_browser_chats</code></td><td>Lists ChatGPT, Claude and Gemini chats in your browser sidebar, and which one is open.</td><td>No</td></tr>
           <tr><td><code>hide_browser_chat</code></td><td>Locks a web chat through the extension. Use <code>current</code> for the chat that’s open.</td><td>No</td></tr>
-          <tr><td><code>unlock_vault</code></td><td>Shows Touch ID, or opens the passphrase page on your computer.</td><td>—</td></tr>
+          <tr><td><code>unlock_vault</code></td><td>Shows Touch ID, or opens the passphrase page on your computer. From your phone it returns a one-time unlock link instead.</td><td>—</td></tr>
           <tr><td><code>lock_vault</code></td><td>Locks the vault and the browser straight away.</td><td>No</td></tr>
           <tr><td><code>list_hidden</code></td><td>Lists everything in the vault.</td><td>Yes</td></tr>
           <tr><td><code>read_hidden</code></td><td>Reads a hidden session’s transcript without restoring it. The text then appears in the current chat.</td><td>Yes</td></tr>
@@ -244,8 +256,8 @@ cloudflared tunnel --url http://localhost:8787</code></pre>
       <p>Yes. Ask Claude to “hide this session”. Claude Code keeps writing the file until the session ends, so AppLock waits until you exit, then encrypts the whole transcript in one go, including the last lines Claude Code writes on the way out.</p>
     </details>
     <details>
-      <summary>Is the ChatGPT connector safe to expose through a tunnel?</summary>
-      <p>The address contains a long random secret, and nothing in the vault can be read without Touch ID or your passphrase on your own computer. Still, only run the tunnel while you use it, and remember that anything you ask ChatGPT to read with <code>read_hidden</code> is sent to OpenAI.</p>
+      <summary>Is it safe to put AppLock on the internet for the phone connector?</summary>
+      <p>The connector URL contains a long random secret, and nothing in the vault can be read until you unlock with your passphrase or Touch ID. Unlock links are single-use, expire after 5 minutes and allow 5 tries. Anyone who gets your connector URL could still lock or hide chats, so keep it private and run <code>applock-mcp remote rotate</code> if it leaks. Anything you ask Claude or ChatGPT to read with <code>read_hidden</code> is sent to that AI provider.</p>
     </details>
     <details>
       <summary>Why isn’t the extension in the Chrome Web Store?</summary>

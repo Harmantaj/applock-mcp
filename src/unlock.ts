@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { createServer } from "node:http";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { privateKeyFromPassphrase, type Config } from "./vault.js";
 import { retrieveKey, touchIdSupported } from "./touchid.js";
 
@@ -111,6 +111,56 @@ export function unlockWithBrowser(cfg: Config, timeoutMs = 120_000, launch = tru
       }
     });
   });
+}
+
+// ---- one-time unlock links for remote clients (phone) ------------------------------
+// Served by the HTTP server behind the user's own HTTPS tunnel, so the passphrase
+// travels from the phone's browser straight to this computer, never through the AI.
+
+const links = new Map<string, { expires: number; attempts: number }>();
+const LINK_TTL_MS = 5 * 60_000;
+
+export function createUnlockLink(publicUrl: string): string {
+  for (const [t, l] of links) if (Date.now() > l.expires) links.delete(t);
+  const token = randomBytes(24).toString("base64url");
+  links.set(token, { expires: Date.now() + LINK_TTL_MS, attempts: 0 });
+  return `${publicUrl.replace(/\/$/, "")}/unlock/${token}`;
+}
+
+/** Handles GET/POST /unlock/<token>. Returns false if the token is unknown or expired. */
+export async function handleUnlockLink(cfg: Config, token: string, req: IncomingMessage, res: ServerResponse): Promise<boolean> {
+  const link = [...links.entries()].find(([t]) => {
+    const a = Buffer.from(t);
+    const b = Buffer.from(token);
+    return a.length === b.length && timingSafeEqual(a, b);
+  })?.[1];
+  if (!link || Date.now() > link.expires) return false;
+  res.setHeader("content-type", "text/html; charset=utf-8");
+  res.setHeader("cache-control", "no-store");
+  res.setHeader("x-frame-options", "DENY");
+  res.setHeader("referrer-policy", "no-referrer");
+  if (req.method !== "POST") {
+    res.end(page());
+    return true;
+  }
+  let raw = "";
+  for await (const c of req) {
+    raw += c;
+    if (raw.length > 10_000) break;
+  }
+  const pass = new URLSearchParams(raw).get("passphrase") ?? "";
+  try {
+    setKey(privateKeyFromPassphrase(cfg, pass), cfg.autoLockMinutes);
+    links.delete(token);
+    res.end(page("Unlocked. Go back to Claude.", true));
+  } catch {
+    link.attempts++;
+    if (link.attempts >= 5) {
+      links.delete(token);
+      res.end(page("Too many attempts. Ask Claude for a new unlock link."));
+    } else res.end(page("Wrong passphrase, try again."));
+  }
+  return true;
 }
 
 export async function unlockWithTouchId(cfg: Config): Promise<void> {
