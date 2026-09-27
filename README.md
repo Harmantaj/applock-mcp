@@ -14,7 +14,7 @@ ChatGPT, Claude.ai and Gemini keep chats on their servers. An MCP server only gi
 ## Install
 
 ```bash
-npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.4.0/applock-mcp-0.4.0.tgz
+npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.4.1/applock-mcp-0.4.1.tgz
 applock-mcp setup                 # passphrase + optional Touch ID
 applock-mcp install claude        # or: antigravity | chatgpt
 ```

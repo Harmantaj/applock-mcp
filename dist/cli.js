@@ -18,7 +18,7 @@ import { findSession, listSessions } from "./sources.js";
 import { deleteKey, retrieveKey, storeKey, touchIdAvailable, touchIdSupported } from "./touchid.js";
 import { changePassphrase, createVault, findHidden, hiddenCount, hideSession, listHidden, loadConfig, loadPending, privateKeyFromPassphrase, restoreHidden, saveConfig, } from "./vault.js";
 // Until it's on npm, the package installs straight from GitHub.
-const PACKAGE_SPEC = process.env.APPLOCK_PACKAGE ?? "https://github.com/Harmantaj/applock-mcp/releases/download/v0.4.0/applock-mcp-0.4.0.tgz";
+const PACKAGE_SPEC = process.env.APPLOCK_PACKAGE ?? "https://github.com/Harmantaj/applock-mcp/releases/download/v0.4.1/applock-mcp-0.4.1.tgz";
 const argv = process.argv.slice(2);
 const INFO_FLAGS = ["--version", "-v", "--help", "-h"];
 const cmd = argv[0] && (!argv[0].startsWith("-") || INFO_FLAGS.includes(argv[0])) ? argv[0] : "serve";
@@ -262,7 +262,7 @@ Your AppLock connector URL${copied ? " (copied to the clipboard)" : ""}:
   ${url}
 
 Treat it like a password. Add it once and it works everywhere you use Claude:
-  1. Open https://claude.ai/customize/connectors in a browser (Settings › Connectors).
+  1. Open https://claude.ai/new#customize/connectors in a browser (Settings › Connectors).
   2. Add › Add custom connector. Name: AppLock. MCP server URL: paste the URL above.
   3. It now appears in Claude on the web, the Claude desktop app and the Claude
      iPhone/Android apps. Turn it on from the tools menu in a chat.

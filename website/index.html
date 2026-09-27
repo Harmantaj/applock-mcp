@@ -119,7 +119,7 @@
     <ol class="steps">
       <li>
         <h3>Install the MCP server</h3>
-        <pre><code>npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.4.0/applock-mcp-0.4.0.tgz</code></pre>
+        <pre><code>npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.4.1/applock-mcp-0.4.1.tgz</code></pre>
         <p>This adds the <code>applock-mcp</code> command.</p>
       </li>
       <li>
@@ -153,7 +153,7 @@
             <p><strong>2. Run one command.</strong></p>
             <pre><code>applock-mcp install phone</code></pre>
             <p>It starts AppLock in the background, turns on Tailscale Funnel for AppLock only (never for a port another app is using), checks it from the internet, and copies your connector URL to the clipboard. The first time, Tailscale opens a page asking you to allow Funnel; click Enable.</p>
-            <p><strong>3. Add it to Claude once.</strong> On <a href="https://claude.ai/customize/connectors">claude.ai › Customize › Connectors</a>, choose <strong>Add</strong> › <strong>Add custom connector</strong>, name it AppLock and paste the URL. It appears in the Claude desktop and phone apps automatically; turn it on from the tools menu in a chat.</p>
+            <p><strong>3. Add it to Claude once.</strong> On <a href="https://claude.ai/new#customize/connectors">claude.ai › Customize › Connectors</a>, choose <strong>Add</strong> › <strong>Add custom connector</strong>, name it AppLock and paste the URL. It appears in the Claude desktop and phone apps automatically; turn it on from the tools menu in a chat.</p>
             <p>To unlock from your phone, ask Claude to unlock AppLock. It replies with a one-time link to your Mac’s unlock page (valid 5 minutes). Your passphrase goes from your phone’s browser straight to your Mac and never through Claude.</p>
             <p><code>applock-mcp remote url</code> copies the URL again, <code>applock-mcp remote rotate</code> replaces it if it leaks, and <code>applock-mcp uninstall phone</code> turns everything off.</p>
           </div>
