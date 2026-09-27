@@ -14,24 +14,24 @@ ChatGPT, Claude.ai and Gemini keep chats on their servers. An MCP server only gi
 ## Install
 
 ```bash
-npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.3.1/applock-mcp-0.3.1.tgz
+npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.4.0/applock-mcp-0.4.0.tgz
 applock-mcp setup                 # passphrase + optional Touch ID
 applock-mcp install claude        # or: antigravity | chatgpt
 ```
 
 Browser extension: download `applock-extension.zip` from the website (or use the `extension/` folder), open `chrome://extensions`, enable Developer mode, **Load unpacked**.
 
-### Claude on your phone (and ChatGPT on the web)
+### Claude everywhere (web, desktop, iPhone, Android) and ChatGPT on the web
 
-Claude's iPhone/Android apps can use custom connectors added on claude.ai; ChatGPT allows them only on the web. Give your Mac a permanent HTTPS address with Tailscale Funnel, then keep AppLock running in the background:
+Custom connectors added on claude.ai work in the Claude desktop and phone apps too; ChatGPT allows them only on chatgpt.com. On a Mac with [Tailscale](https://tailscale.com) installed and signed in:
 
 ```bash
-brew install --cask tailscale-app          # open it and sign in
-tailscale funnel --bg 8787                 # approve Funnel the first time
-applock-mcp install remote --public-url https://<your-mac>.<tailnet>.ts.net
+applock-mcp install phone
 ```
 
-Add the printed connector URL on claude.ai › Settings › Connectors › Add custom connector (or in ChatGPT web: Settings › Apps & Connectors › Advanced › Developer mode, no authentication). From a phone, `unlock_vault` returns a one-time link to your Mac's unlock page, so the passphrase never passes through the AI. It still can't hide chats inside the phone apps; it's a remote control for your Mac, which must be awake.
+This starts AppLock in the background (launchd), turns on Tailscale Funnel for AppLock only — it never reuses a port another program is serving, and never replaces someone else's Funnel route — verifies it from the internet, and copies the connector URL. Add it on claude.ai › Customize › Connectors › Add custom connector. From a phone, `unlock_vault` returns a one-time link to your Mac's unlock page, so the passphrase never passes through the AI. It can't hide chats inside the phone apps; it's a remote control for your Mac, which must be awake.
+
+`applock-mcp remote url` · `applock-mcp remote rotate` · `applock-mcp uninstall phone`
 
 ## Tools
 

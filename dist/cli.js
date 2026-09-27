@@ -12,12 +12,13 @@ import { fileURLToPath } from "node:url";
 import { resetBridge, startBridge } from "./bridge.js";
 import { applockHome, BRIDGE_PORT } from "./paths.js";
 import { handleUnlockLink } from "./unlock.js";
+import { APP_ID, chooseLocalPort, copyToClipboard, FUNNEL_PORTS, funnelStatus, funnelTarget, isAppLock, pickFunnelPort, portFree, startFunnel, stopFunnel, tailscaleBin, tailscaleStatus, waitFor, } from "./phone.js";
 import { createServer, sweepPending, VERSION } from "./server.js";
 import { findSession, listSessions } from "./sources.js";
 import { deleteKey, retrieveKey, storeKey, touchIdAvailable, touchIdSupported } from "./touchid.js";
 import { changePassphrase, createVault, findHidden, hiddenCount, hideSession, listHidden, loadConfig, loadPending, privateKeyFromPassphrase, restoreHidden, saveConfig, } from "./vault.js";
 // Until it's on npm, the package installs straight from GitHub.
-const PACKAGE_SPEC = process.env.APPLOCK_PACKAGE ?? "https://github.com/Harmantaj/applock-mcp/releases/download/v0.3.1/applock-mcp-0.3.1.tgz";
+const PACKAGE_SPEC = process.env.APPLOCK_PACKAGE ?? "https://github.com/Harmantaj/applock-mcp/releases/download/v0.4.0/applock-mcp-0.4.0.tgz";
 const argv = process.argv.slice(2);
 const INFO_FLAGS = ["--version", "-v", "--help", "-h"];
 const cmd = argv[0] && (!argv[0].startsWith("-") || INFO_FLAGS.includes(argv[0])) ? argv[0] : "serve";
@@ -142,7 +143,7 @@ async function serveHttp() {
     const http = createHttpServer(async (req, res) => {
         const url = new URL(req.url ?? "/", "http://x");
         if (url.pathname === "/health")
-            return void res.writeHead(200, { "content-type": "text/plain" }).end("ok");
+            return void res.writeHead(200, { "content-type": "text/plain" }).end(`${APP_ID} ok ${VERSION}`);
         if (url.pathname.startsWith("/unlock/")) {
             const cfg = loadConfig();
             if (cfg && (await handleUnlockLink(cfg, url.pathname.slice(8), req, res)))
@@ -191,17 +192,20 @@ function xml(s) {
     return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 /** Keeps `serve --http` running in the background (macOS launchd), restarting it on login. */
-function installRemote() {
+async function installRemote(params = {}) {
     if (process.platform !== "darwin")
         throw new Error("install remote uses launchd and is macOS-only. Run `applock-mcp serve --http --public-url …` under your own service manager.");
-    const publicUrl = publicUrlOpt();
+    const publicUrl = params.publicUrl ?? publicUrlOpt();
     if (!publicUrl)
         throw new Error("Pass your tunnel address, e.g.  applock-mcp install remote --public-url https://my-mac.tailnet-name.ts.net");
     if (!loadConfig())
         throw new Error("Run  applock-mcp setup  first.");
-    const port = opt("port") ?? "8787";
+    const port = params.port ?? Number(opt("port") ?? 8797);
+    // Never take over a port another program is serving (it would end up on the internet).
+    if (!(await portFree(port)) && !(await isAppLock(port)) && !existsSync(agentPath()))
+        throw new Error(`Port ${port} is already used by another program. Pick a different --port.`);
     const node = onPath("node") ?? process.execPath;
-    const args = [node, fileURLToPath(import.meta.url), "serve", "--http", "--port", port, "--public-url", publicUrl];
+    const args = [node, fileURLToPath(import.meta.url), "serve", "--http", "--port", String(port), "--public-url", publicUrl];
     const log = join(applockHome(), "remote.log");
     const plist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -225,11 +229,109 @@ function installRemote() {
         execFileSync("launchctl", ["bootout", `${domain}/${AGENT_LABEL}`], { stdio: "ignore" });
     }
     catch { }
+    // bootout is asynchronous; wait for the old instance to release the port.
+    await waitFor(async () => (await portFree(port)) || !(await isAppLock(port)), 5000, 200);
     writeFileSync(agentPath(), plist);
     execFileSync("launchctl", ["bootstrap", domain, agentPath()], { stdio: "inherit" });
+    if (params.quiet)
+        return;
     console.error(`✓ AppLock now runs in the background on port ${port} (log: ${log}).`);
     console.error(`\nAdd this as a custom connector in Claude (claude.ai › Settings › Connectors › Add custom connector):\n\n  ${publicUrl}/mcp/${httpSecret()}\n`);
     console.error("Treat that URL like a password. `applock-mcp remote rotate` issues a new one.");
+}
+/** Reads the public URL the background service was installed with. */
+function installedPublicUrl() {
+    if (!existsSync(agentPath()))
+        return undefined;
+    return readFileSync(agentPath(), "utf8").match(/--public-url<\/string><string>([^<]+)</)?.[1];
+}
+function installedPort() {
+    if (!existsSync(agentPath()))
+        return undefined;
+    const p = readFileSync(agentPath(), "utf8").match(/--port<\/string><string>(\d+)</)?.[1];
+    return p ? Number(p) : undefined;
+}
+function connectorUrl(publicUrl) {
+    return `${publicUrl}/mcp/${httpSecret()}`;
+}
+function showConnector(url) {
+    const copied = copyToClipboard(url);
+    console.error(`
+Your AppLock connector URL${copied ? " (copied to the clipboard)" : ""}:
+
+  ${url}
+
+Treat it like a password. Add it once and it works everywhere you use Claude:
+  1. Open https://claude.ai/customize/connectors in a browser (Settings › Connectors).
+  2. Add › Add custom connector. Name: AppLock. MCP server URL: paste the URL above.
+  3. It now appears in Claude on the web, the Claude desktop app and the Claude
+     iPhone/Android apps. Turn it on from the tools menu in a chat.
+ChatGPT: only chatgpt.com (Settings › Apps & Connectors › Advanced › Developer mode,
+no authentication). ChatGPT's phone apps can't use custom connectors.
+Leaked? Run  applock-mcp remote rotate  and re-add it.`);
+}
+/** One command: Tailscale Funnel + background service + checks + connector URL. */
+async function installPhone() {
+    if (process.platform !== "darwin")
+        throw new Error("install phone automates macOS. Elsewhere, run  applock-mcp serve --http --public-url https://…  behind your own HTTPS tunnel.");
+    if (!loadConfig()) {
+        if (!process.stdin.isTTY)
+            throw new Error("Run  applock-mcp setup  first.");
+        console.error("First, create your AppLock vault.\n");
+        await setup();
+    }
+    const ts = tailscaleBin();
+    if (!ts)
+        throw new Error(`Tailscale isn't installed. Install it, open it and sign in, then run this again:
+
+  brew install --cask tailscale-app      (or get Tailscale from the Mac App Store)`);
+    const st = tailscaleStatus(ts);
+    if (!st.running || !st.host)
+        throw new Error("Tailscale isn't signed in. Open Tailscale from the menu bar, log in, then run this again.");
+    console.error(`✓ Tailscale is signed in as ${st.host}`);
+    const port = opt("port") ? Number(opt("port")) : (installedPort() ?? (await chooseLocalPort(8797)));
+    const httpsPort = pickFunnelPort(funnelStatus(ts), st.host, port);
+    if (!httpsPort)
+        throw new Error(`Tailscale Funnel on this Mac already serves other things on ports ${FUNNEL_PORTS.join(", ")}. AppLock won't replace them.`);
+    const publicUrl = `https://${st.host}${httpsPort === 443 ? "" : `:${httpsPort}`}`;
+    await installRemote({ publicUrl, port, quiet: true });
+    if (!(await waitFor(() => isAppLock(port), 15000)))
+        throw new Error(`AppLock didn't start on port ${port}. See ${join(applockHome(), "remote.log")}.`);
+    console.error(`✓ AppLock runs in the background on 127.0.0.1:${port} and starts again when you log in`);
+    if (funnelTarget(funnelStatus(ts), st.host, httpsPort) !== `http://127.0.0.1:${port}`) {
+        console.error(`Turning on Tailscale Funnel (${publicUrl} → 127.0.0.1:${port})…`);
+        if (!(await startFunnel(ts, httpsPort, port)))
+            throw new Error("Tailscale Funnel didn't start. Run the command again after approving Funnel for your account.");
+    }
+    console.error(`✓ Funnel: ${publicUrl} → 127.0.0.1:${port} (only AppLock is exposed)`);
+    const reachable = await waitFor(async () => {
+        try {
+            const r = await fetch(`${publicUrl}/health`, { signal: AbortSignal.timeout(8000) });
+            return (await r.text()).startsWith(APP_ID);
+        }
+        catch {
+            return false;
+        }
+    }, 90_000, 3000);
+    if (!reachable)
+        console.error("! The public address didn't answer yet (new HTTPS certificates can take a minute). It should work shortly.");
+    else
+        console.error("✓ Reachable from the internet");
+    showConnector(connectorUrl(publicUrl));
+}
+async function uninstallPhone() {
+    const ts = tailscaleBin();
+    const port = installedPort();
+    const url = installedPublicUrl();
+    if (ts && port && url) {
+        const host = new URL(url).hostname;
+        const httpsPort = Number(new URL(url).port || 443);
+        // Only turn off the Funnel route that points at AppLock.
+        if (funnelTarget(funnelStatus(ts), host, httpsPort) === `http://127.0.0.1:${port}`)
+            stopFunnel(ts, httpsPort);
+    }
+    uninstallRemote();
+    console.error("✓ Phone access removed. Delete the AppLock connector in Claude too.");
 }
 function uninstallRemote() {
     try {
@@ -246,9 +348,9 @@ function rotateSecret() {
     console.error("✓ New connector secret created. The old connector URL no longer works.");
     if (existsSync(agentPath())) {
         execFileSync("launchctl", ["kickstart", "-k", `gui/${process.getuid?.()}/${AGENT_LABEL}`], { stdio: "ignore" });
-        const url = readFileSync(agentPath(), "utf8").match(/--public-url<\/string><string>([^<]+)</)?.[1];
+        const url = installedPublicUrl();
         if (url)
-            console.error(`New connector URL:\n\n  ${url}/mcp/${s}\n`);
+            showConnector(connectorUrl(url));
     }
     else
         console.error(`New path: /mcp/${s}`);
@@ -306,6 +408,8 @@ async function setup() {
 function installClient(client) {
     if (client === "remote")
         return installRemote();
+    if (client === "phone" || client === "connector")
+        return installPhone();
     const self = selfCommand();
     if (client === "claude" || client === "claude-code") {
         const args = ["mcp", "add", "--scope", "user", "applock", "--", self.command, ...self.args];
@@ -330,19 +434,9 @@ function installClient(client) {
         console.error(`✓ Added "applock" to ${p}. Reload MCP servers in Antigravity (Agent panel ▸ … ▸ Manage MCPs ▸ Refresh).`);
         return;
     }
-    if (client === "chatgpt" || client === "chatgpt-web" || client === "phone") {
-        console.error(`Phones (Claude app) and ChatGPT on the web reach AppLock through a public HTTPS address.
-
-  1. brew install --cask tailscale-app      (open it and sign in)
-  2. tailscale funnel --bg 8787             (approve Funnel the first time)
-  3. applock-mcp install remote --public-url https://<your-mac>.<tailnet>.ts.net
-
-Step 3 prints the connector URL. Add it in Claude (claude.ai › Settings › Connectors ›
-Add custom connector) or ChatGPT web (Settings › Apps & Connectors › Advanced ›
-Developer mode, no authentication). ChatGPT's phone apps can't use custom connectors.`);
-        return;
-    }
-    console.error("Usage: applock-mcp install <claude|antigravity|phone|remote>");
+    if (client === "chatgpt" || client === "chatgpt-web")
+        return installPhone();
+    console.error("Usage: applock-mcp install <claude|antigravity|phone>");
     process.exit(1);
 }
 const HELP = `applock-mcp ${VERSION} — lock and hide AI chats
@@ -351,10 +445,12 @@ const HELP = `applock-mcp ${VERSION} — lock and hide AI chats
   install <client>      register with claude | antigravity | chatgpt
   serve                 run the MCP server on stdio (what clients launch)
   serve --http          run over Streamable HTTP (--port 8787, --public-url https://…)
-  install remote        keep the HTTP server running for phone/web connectors (macOS,
-                        --public-url https://your-mac.your-tailnet.ts.net)
-  uninstall remote      stop and remove that background service
-  remote rotate         issue a new connector URL secret
+  install phone         one step: Tailscale Funnel + background service + connector URL
+                        for Claude (web, desktop, iPhone, Android) and ChatGPT web
+  uninstall phone       turn that off again
+  remote url            show and copy the connector URL
+  remote rotate         issue a new connector URL (the old one stops working)
+  install remote        advanced: background service for your own tunnel (--public-url)
   status                show vault state
   list                  list visible Claude Code / Antigravity sessions
   hide <id>             hide a session
@@ -441,11 +537,19 @@ async function main() {
         case "uninstall":
             if (argv[1] === "remote")
                 return uninstallRemote();
-            throw new Error("Usage: applock-mcp uninstall remote");
+            if (argv[1] === "phone" || argv[1] === "connector")
+                return uninstallPhone();
+            throw new Error("Usage: applock-mcp uninstall <phone|remote>");
         case "remote":
             if (argv[1] === "rotate")
                 return rotateSecret();
-            throw new Error("Usage: applock-mcp remote rotate");
+            if (argv[1] === "url") {
+                const u = installedPublicUrl();
+                if (!u)
+                    throw new Error("Phone access isn't set up. Run  applock-mcp install phone");
+                return showConnector(connectorUrl(u));
+            }
+            throw new Error("Usage: applock-mcp remote <url|rotate>");
         case "bridge-reset":
             resetBridge();
             console.log("Browser extension un-paired. The next extension to connect will be paired.");
