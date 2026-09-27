@@ -60,13 +60,15 @@ export function enqueue(cmd: Omit<BridgeCommand, "id" | "createdAt">): BridgeCom
   return full;
 }
 
-export function extensionConnected(maxAgeMs = 20000): boolean {
+// Chrome wakes the extension at most every 30 s when no chat tab is open, so
+// anything shorter than that makes a healthy connection look dropped.
+export function extensionConnected(maxAgeMs = 75_000): boolean {
   const s = readState();
   return !!s.lastSeen && Date.now() - Date.parse(s.lastSeen) < maxAgeMs;
 }
 
 /** Waits for the extension to acknowledge a command. */
-export async function waitForResult(cmdId: string, timeoutMs = 15000) {
+export async function waitForResult(cmdId: string, timeoutMs = 45_000) {
   const end = Date.now() + timeoutMs;
   while (Date.now() < end) {
     const r = readState().results?.[cmdId];
