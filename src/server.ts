@@ -18,7 +18,7 @@ import {
   type Config,
 } from "./vault.js";
 
-export const VERSION = "0.3.0";
+export const VERSION = "0.3.1";
 
 const INSTRUCTIONS = `AppLock hides private chats. Hiding never needs unlocking. Listing, reading or restoring hidden chats needs unlock_vault, which shows a Touch ID prompt or opens a passphrase page on the user's computer; never ask the user to type their passphrase into chat. For ChatGPT/Claude/Gemini web chats, use hide_browser_chat (needs the AppLock browser extension). Do not repeat hidden chat contents unless the user asks.`;
 
@@ -27,7 +27,7 @@ const fail = (t: string) => ({ content: [{ type: "text" as const, text: t }], is
 
 function requireConfig(): Config {
   const cfg = loadConfig();
-  if (!cfg) throw new Error("AppLock is not set up yet. In a terminal, run:  applock-mcp setup  (install: npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.3.0/applock-mcp-0.3.0.tgz)");
+  if (!cfg) throw new Error("AppLock is not set up yet. In a terminal, run:  applock-mcp setup  (install: npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.3.1/applock-mcp-0.3.1.tgz)");
   return cfg;
 }
 
@@ -173,7 +173,7 @@ export function createServer(opts: ServerOptions = {}): McpServer {
       annotations: { readOnlyHint: true },
     },
     safely(({ query }) => {
-      if (!extensionConnected(60_000))
+      if (!extensionConnected())
         return fail("The AppLock browser extension is not connected. Install it and open ChatGPT, Claude.ai or Gemini in the browser.");
       const st = readState();
       let chats = st.chats ?? [];
@@ -196,7 +196,7 @@ export function createServer(opts: ServerOptions = {}): McpServer {
     },
     safely(async ({ chat_id, site }) => {
       const cfg = requireConfig();
-      if (!extensionConnected(60_000))
+      if (!extensionConnected())
         return fail("The AppLock browser extension is not connected. Install it and keep a ChatGPT, Claude.ai or Gemini tab open.");
       const st = readState();
       let target = chat_id === "current" ? st.active ?? undefined : st.chats?.find((c) => c.id === chat_id && (!site || c.site === site));
@@ -205,7 +205,7 @@ export function createServer(opts: ServerOptions = {}): McpServer {
       if (!target) return fail(`Unknown chat "${chat_id}". Pass site as well, or pick one from list_browser_chats.`);
       const cmd = enqueue({ action: "lock", site: target.site, chatId: target.id });
       const r = await waitForResult(cmd.id);
-      if (!r) return fail("The extension didn't respond within 15 seconds. Is a chat tab open in the browser?");
+      if (!r) return fail("The extension didn't respond within 45 seconds. Is Chrome running on the computer with AppLock enabled?");
       if (!r.ok) return fail(`The extension couldn't lock it: ${r.error}`);
       const chat = r.chat ?? target;
       recordBrowserLock(cfg, chat);
