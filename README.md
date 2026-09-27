@@ -5,7 +5,7 @@ Lock and hide the AI chats you choose, behind Touch ID or a password — like Lo
 - **Browser extension** hides chosen **ChatGPT, Claude.ai and Gemini** chats from the sidebar and shows a lock screen if one is opened directly.
 - **MCP server** encrypts local **Claude Code** and **Google Antigravity** sessions out of their history, and lets any MCP client (Claude Code, Antigravity, ChatGPT developer mode) hide chats for you.
 
-Website with the full guide: see the `website/` folder (deployed on Vercel).
+Website with the full guide: https://harmantaj.github.io/applock-mcp/ (source in `website/`).
 
 ## Why two pieces
 
