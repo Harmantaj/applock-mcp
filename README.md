@@ -14,7 +14,7 @@ ChatGPT, Claude.ai and Gemini keep chats on their servers. An MCP server only gi
 ## Install
 
 ```bash
-npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.1.0/applock-mcp-0.1.0.tgz
+npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.2.0/applock-mcp-0.2.0.tgz
 applock-mcp setup                 # passphrase + optional Touch ID
 applock-mcp install claude        # or: antigravity | chatgpt
 ```
@@ -53,7 +53,9 @@ Then in ChatGPT: Settings › Apps & Connectors › Advanced › Developer mode 
 - The passphrase is never passed through the model: unlocking uses the Touch ID sheet or a one-time page on `127.0.0.1`.
 - The bridge on `127.0.0.1:47521` accepts only browser-extension origins, pins the first extension that pairs, and is **lock-only** — nothing it sends can reveal a chat.
 - The extension uses PBKDF2-SHA256 (600k) with lockout, and WebAuthn (platform authenticator) with local signature verification.
-- Not protected: the provider's servers, your account on other devices, malware running as you. The Claude desktop app keeps its own session title list.
+- Locks and the password hash live in `chrome.storage.sync`, so they follow your Chrome profile to your other computers; chat titles and the Touch ID key stay on each computer.
+- Forgot the extension password? **Forgot password?** on the lock screen or popup resets it with Touch ID or the one-time recovery code (100 bits, stored hashed, rotated on use).
+- Not protected: the provider's servers, the ChatGPT/Claude/Gemini phone apps (use iOS **Require Face ID** on the app instead), removing the extension, malware running as you. The Claude desktop app keeps its own session title list.
 
 ## Development
 

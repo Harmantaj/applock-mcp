@@ -1,4 +1,5 @@
 import "./sites.js";
+import "./store.js";
 import { getAuth, relockNow, startUnlockedSession, verifyPassword, verifyTouchId } from "./auth.js";
 
 const { parseChatUrl, SITES } = globalThis.AppLockSites;
@@ -9,7 +10,8 @@ let current; // { site, id, title }
 
 async function render() {
   const auth = await getAuth();
-  const { locked = {}, unlockedUntil = 0, bridgeSeen = 0 } = await chrome.storage.local.get(["locked", "unlockedUntil", "bridgeSeen"]);
+  const locked = await globalThis.AppLockStore.getLocked();
+  const { unlockedUntil = 0, bridgeSeen = 0 } = await chrome.storage.local.get(["unlockedUntil", "bridgeSeen"]);
   const unlocked = Date.now() < unlockedUntil;
   $("setup").hidden = !!auth?.hash;
   $("main").hidden = !auth?.hash;
@@ -23,7 +25,7 @@ async function render() {
 
   if (current) {
     const isLocked = !!locked[`${current.site}:${current.id}`];
-    $("curTitle").textContent = isLocked ? `“${locked[`${current.site}:${current.id}`].title}” is locked.` : `“${current.title}” on ${siteName(current.site)}`;
+    $("curTitle").textContent = isLocked ? `“${locked[`${current.site}:${current.id}`].title || current.title}” is locked.` : `“${current.title}” on ${siteName(current.site)}`;
     $("curTitle").classList.toggle("muted", false);
     $("lockBtn").hidden = isLocked;
     $("unlockBtn").hidden = !isLocked || !unlocked;
@@ -41,8 +43,10 @@ async function render() {
     const li = document.createElement("li");
     const t = document.createElement("span");
     t.className = "t";
-    t.textContent = item.title;
-    t.title = item.title;
+    // Locks made on another computer have no title here until the chat is seen once.
+    const title = item.title || `${siteName(item.site)} chat ${item.id.slice(0, 8)}`;
+    t.textContent = title;
+    t.title = title;
     const badge = document.createElement("span");
     badge.className = "badge";
     badge.textContent = siteName(item.site);
@@ -53,7 +57,7 @@ async function render() {
     const rm = document.createElement("button");
     rm.className = "link";
     rm.textContent = "Unlock";
-    rm.setAttribute("aria-label", `Remove lock from ${item.title}`);
+    rm.setAttribute("aria-label", `Remove lock from ${title}`);
     rm.onclick = async () => {
       await chrome.runtime.sendMessage({ type: "unlockChat", site: item.site, id: item.id });
       render();
@@ -82,6 +86,7 @@ function err(e) {
 }
 
 $("openSetup").onclick = () => chrome.runtime.openOptionsPage();
+$("forgot").onclick = () => chrome.tabs.create({ url: chrome.runtime.getURL("options.html#recover") });
 $("settings").onclick = () => chrome.runtime.openOptionsPage();
 $("lockBtn").onclick = async () => {
   await chrome.runtime.sendMessage({ type: "lock", ...current });

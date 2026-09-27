@@ -2,10 +2,14 @@ import { test as base, expect, chromium, type BrowserContext, type Frame, type P
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { testExtension } from "./test-extension";
 import { CHATGPT_CHATS, CLAUDE_CHATS, GEMINI_CHATS, mockSites } from "./mock-sites";
 
-const EXT = resolve(process.cwd(), "extension");
+const { dir: EXT, port: BRIDGE_PORT } = testExtension();
 const PASSWORD = "open sesame";
+let recoveryCode = "";
+const lockKeys = (sw: Worker) =>
+  sw.evaluate(async () => Object.keys(await chrome.storage.sync.get(null)).filter((k) => k.startsWith("lk:")).map((k) => k.slice(3)));
 
 type Fixtures = { ctx: BrowserContext; sw: Worker; extId: string };
 
@@ -72,14 +76,21 @@ test("first install opens setup; a password can be saved", async ({ ctx: context
   setup = setup!;
   await setup.waitForLoadState();
   await expect(setup.getByRole("heading", { name: "1 · Choose a password" })).toBeVisible();
-  await setup.getByLabel("New password").fill(PASSWORD);
-  await setup.getByLabel("Repeat password").fill("typo");
+  await setup.getByLabel("New password", { exact: true }).fill(PASSWORD);
+  await setup.getByLabel("Repeat password", { exact: true }).fill("typo");
   await setup.getByRole("button", { name: "Save password" }).click();
   await expect(setup.locator("#pwErr")).toHaveText("The passwords don't match.");
-  await setup.getByLabel("Repeat password").fill(PASSWORD);
+  await setup.getByLabel("Repeat password", { exact: true }).fill(PASSWORD);
   await setup.getByRole("button", { name: "Save password" }).click();
   await expect(setup.locator("#pwOk")).toHaveText("Saved.");
   await expect(setup.getByRole("button", { name: "Change password" })).toBeVisible();
+  // A one-time recovery code is shown right after the first password.
+  await expect(setup.locator("#codeCard")).toBeVisible();
+  recoveryCode = (await setup.locator("#codeText").textContent())!;
+  expect(recoveryCode).toMatch(/^[0-9A-Z]{5}(-[0-9A-Z]{5}){3}$/);
+  await setup.getByRole("button", { name: "I’ve saved it" }).click();
+  await expect(setup.locator("#codeCard")).toBeHidden();
+  await expect(setup.locator("#codeText")).toHaveText("");
   await setup.close();
 });
 
@@ -98,6 +109,12 @@ test("locking a ChatGPT chat from the popup hides it from the sidebar", async ({
 
   await expect(sidebarLink(chat, secret.title)).toBeHidden();
   await expect(sidebarLink(chat, other.title)).toBeVisible();
+  // Only the opaque id goes to Chrome sync; the title stays on this computer.
+  const synced = await sw.evaluate(() => chrome.storage.sync.get(null));
+  expect(Object.keys(synced)).toContain(`lk:chatgpt:${secret.id}`);
+  expect(JSON.stringify(synced)).not.toContain(secret.title);
+  const titles = await sw.evaluate(async () => (await chrome.storage.local.get("titles")).titles);
+  expect(titles[`chatgpt:${secret.id}`]).toBe(secret.title);
   // It was open, so the lock screen covers it immediately.
   await expect(chat.locator("#applock-overlay")).toBeAttached();
   await expect(chat).toHaveTitle("Locked chat");
@@ -163,10 +180,11 @@ test("client-side navigation into a locked chat is caught", async ({ ctx: contex
 test("Claude.ai and Gemini sidebars are handled too", async ({ ctx: context, sw }) => {
   await sw.evaluate(
     async ({ c, g }) => {
-      const { locked = {} } = await chrome.storage.local.get("locked");
-      locked[`claude:${c.id}`] = { site: "claude", id: c.id, title: c.title, lockedAt: Date.now() };
-      locked[`gemini:${g.id}`] = { site: "gemini", id: g.id, title: g.title, lockedAt: Date.now() };
-      await chrome.storage.local.set({ locked });
+      // As if these were locked on another computer: synced ids, no titles here yet.
+      await chrome.storage.sync.set({
+        [`lk:claude:${c.id}`]: { site: "claude", id: c.id, lockedAt: Date.now() },
+        [`lk:gemini:${g.id}`]: { site: "gemini", id: g.id, lockedAt: Date.now() },
+      });
     },
     { c: CLAUDE_CHATS[0], g: GEMINI_CHATS[0] },
   );
@@ -175,6 +193,10 @@ test("Claude.ai and Gemini sidebars are handled too", async ({ ctx: context, sw 
   await expect(sidebarLink(claude, CLAUDE_CHATS[0].title)).toBeHidden();
   await expect(claude.locator("li", { hasText: CLAUDE_CHATS[0].title })).toBeHidden();
   await expect(sidebarLink(claude, CLAUDE_CHATS[1].title)).toBeVisible();
+  // The title of a lock made elsewhere is learned locally from the (hidden) sidebar row.
+  await expect
+    .poll(() => sw.evaluate(async (k) => (await chrome.storage.local.get("titles")).titles?.[k], `claude:${CLAUDE_CHATS[0].id}`))
+    .toBe(CLAUDE_CHATS[0].title);
 
   const gemini = await context.newPage();
   await open(gemini, "https://gemini.google.com/app");
@@ -203,9 +225,49 @@ test("removing a lock needs an unlocked session", async ({ ctx: context, sw, ext
   await expect(popup.locator("#lockedList li")).toHaveCount(2);
   await popup.getByRole("button", { name: "Lock now" }).click();
   await expect(popup.locator("#state")).toHaveText("Locked");
-  const locked = await sw.evaluate(async () => Object.keys((await chrome.storage.local.get("locked")).locked));
+  const locked = await lockKeys(sw);
   expect(locked.sort()).toEqual([`chatgpt:${CHATGPT_CHATS[0].id}`, `claude:${CLAUDE_CHATS[0].id}`].sort());
   await popup.close();
+});
+
+test("forgot password: the recovery code resets it and is replaced", async ({ ctx: context, extId }) => {
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extId}/options.html#recover`);
+  await expect(page.getByRole("heading", { name: "Forgot your password?" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Reset with Touch ID" })).toBeHidden();
+  await page.getByLabel("Choose a new password").fill("brand new");
+  await page.getByLabel("Repeat the new password").fill("brand new");
+  await page.getByLabel("Recovery code").fill("AAAAA-AAAAA-AAAAA-AAAAA");
+  await page.getByRole("button", { name: "Reset with recovery code" }).click();
+  await expect(page.locator("#resetErr")).toHaveText("That recovery code isn't right.");
+  // Lower-case and without dashes still works.
+  await page.getByLabel("Recovery code").fill(recoveryCode.replace(/-/g, "").toLowerCase());
+  await page.getByRole("button", { name: "Reset with recovery code" }).click();
+  await expect(page.locator("#codeCard")).toBeVisible();
+  const next = (await page.locator("#codeText").textContent())!;
+  expect(next).toMatch(/^[0-9A-Z]{5}(-[0-9A-Z]{5}){3}$/);
+  expect(next).not.toBe(recoveryCode);
+  // The old password no longer works; the new one does.
+  const check = (pw: string) =>
+    page.evaluate(async (p) => {
+      const { verifyPassword } = await import("./auth.js");
+      return verifyPassword(p).then(() => "ok", (e: Error) => e.message);
+    }, pw);
+  expect(await check(PASSWORD)).toBe("Wrong password.");
+  expect(await check("brand new")).toBe("ok");
+  // The old recovery code is spent.
+  await page.goto(`chrome-extension://${extId}/options.html#recover`);
+  await page.getByLabel("Choose a new password").fill("again1");
+  await page.getByLabel("Repeat the new password").fill("again1");
+  await page.getByLabel("Recovery code").fill(recoveryCode);
+  await page.getByRole("button", { name: "Reset with recovery code" }).click();
+  await expect(page.locator("#resetErr")).toHaveText("That recovery code isn't right.");
+  // Unlock page links to the recovery page.
+  await page.goto(`chrome-extension://${extId}/unlock.html`);
+  const [recover] = await Promise.all([context.waitForEvent("page"), page.getByRole("button", { name: "Forgot password?" }).click()]);
+  await expect(recover).toHaveURL(/options\.html#recover$/);
+  await recover.close();
+  await page.close();
 });
 
 test("Touch ID (virtual authenticator) registers and unlocks, with signature verified", async ({ ctx: context, extId }) => {
@@ -242,5 +304,25 @@ test("Touch ID (virtual authenticator) registers and unlocks, with signature ver
     }
   });
   expect(refused).not.toBe(true);
+
+  // Forgot password, reset with Touch ID on this computer.
+  await cdp.send("WebAuthn.setUserVerified", { authenticatorId, isUserVerified: true });
+  await options.goto(`chrome-extension://${extId}/options.html#recover`);
+  await expect(options.getByRole("button", { name: "Reset with Touch ID" })).toBeVisible();
+  await options.getByLabel("Choose a new password").fill("touch reset");
+  await options.getByLabel("Repeat the new password").fill("touch reset");
+  await options.getByRole("button", { name: "Reset with Touch ID" }).click();
+  await expect(options.locator("#codeCard")).toBeVisible();
+  const ok = await options.evaluate(async () => {
+    const { verifyPassword } = await import("./auth.js");
+    return verifyPassword("touch reset");
+  });
+  expect(ok).toBe(true);
+  // The Touch ID key stays on this device (local), never in sync.
+  const where = await options.evaluate(async () => ({
+    local: !!(await chrome.storage.local.get("credential")).credential,
+    sync: JSON.stringify(await chrome.storage.sync.get(null)).includes("publicKey"),
+  }));
+  expect(where).toEqual({ local: true, sync: false });
   await options.close();
 });

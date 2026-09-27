@@ -1,5 +1,8 @@
-// Password + Touch ID (WebAuthn platform authenticator) for extension pages.
-// Everything stays in chrome.storage.local on this browser profile.
+// Password, recovery code and Touch ID (WebAuthn platform authenticator) for
+// extension pages. See store.js for what is synced and what stays on this device.
+import "./store.js";
+
+const store = globalThis.AppLockStore;
 
 const enc = new TextEncoder();
 const b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
@@ -20,8 +23,8 @@ function sameBytes(a, b) {
   return diff === 0;
 }
 
-export async function getAuth() {
-  return (await chrome.storage.local.get("auth")).auth;
+export function getAuth() {
+  return store.getAuth();
 }
 
 export async function getSettings() {
@@ -32,27 +35,70 @@ export async function setPassword(password) {
   if (!password || password.length < 4) throw new Error("Use at least 4 characters.");
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const hash = await pbkdf2(password, salt, ITERATIONS);
-  const prev = (await getAuth()) ?? {};
-  await chrome.storage.local.set({ auth: { ...prev, salt: b64(salt), hash: b64(hash), iterations: ITERATIONS } });
+  await store.saveAuth({ salt: b64(salt), hash: b64(hash), iterations: ITERATIONS });
 }
 
-/** Throws a user-facing message on failure; applies an escalating lockout after 5 misses. */
-export async function verifyPassword(password) {
-  const auth = await getAuth();
-  if (!auth?.hash) throw new Error("No password set yet.");
+/** Checks a secret against a stored hash with an escalating lockout after 5 misses. */
+async function checkWithLockout(secret, salt, expected, iterations, wrongMessage) {
   const { authFail = { count: 0, until: 0 } } = await chrome.storage.local.get("authFail");
   if (Date.now() < authFail.until) {
     throw new Error(`Too many attempts. Try again in ${Math.ceil((authFail.until - Date.now()) / 1000)}s.`);
   }
-  const hash = await pbkdf2(password, unb64(auth.salt), auth.iterations);
-  if (sameBytes(hash, unb64(auth.hash))) {
+  const hash = await pbkdf2(secret, unb64(salt), iterations);
+  if (sameBytes(hash, unb64(expected))) {
     await chrome.storage.local.remove("authFail");
     return true;
   }
   const count = authFail.count + 1;
   const until = count >= 5 ? Date.now() + 30000 * 2 ** (count - 5) : 0;
   await chrome.storage.local.set({ authFail: { count, until } });
-  throw new Error(count >= 5 ? "Too many attempts. Locked for a while." : "Wrong password.");
+  throw new Error(count >= 5 ? "Too many attempts. Locked for a while." : wrongMessage);
+}
+
+/** Throws a user-facing message on failure. */
+export async function verifyPassword(password) {
+  const auth = await getAuth();
+  if (!auth?.hash) throw new Error("No password set yet.");
+  return checkWithLockout(password, auth.salt, auth.hash, auth.iterations, "Wrong password.");
+}
+
+// ---- recovery code ---------------------------------------------------------------
+// 20 characters from an unambiguous alphabet (100 bits), shown once, stored hashed.
+
+const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+function normalizeCode(code) {
+  return String(code).toUpperCase().replace(/[\s-]/g, "").replace(/O/g, "0").replace(/[IL]/g, "1");
+}
+
+/** Creates a new recovery code, replacing any previous one, and returns it for display. */
+export async function createRecoveryCode() {
+  const bytes = crypto.getRandomValues(new Uint8Array(20));
+  const raw = [...bytes].map((b) => ALPHABET[b % 32]).join("");
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const hash = await pbkdf2(raw, salt, 100000);
+  await store.saveAuth({ recoverySalt: b64(salt), recoveryHash: b64(hash) });
+  return raw.match(/.{5}/g).join("-");
+}
+
+export async function hasRecoveryCode() {
+  return !!(await getAuth())?.recoveryHash;
+}
+
+/** Sets a new password after checking the recovery code; returns a fresh recovery code. */
+export async function resetWithRecoveryCode(code, newPassword) {
+  const auth = await getAuth();
+  if (!auth?.recoveryHash) throw new Error("No recovery code was created for AppLock.");
+  await checkWithLockout(normalizeCode(code), auth.recoverySalt, auth.recoveryHash, 100000, "That recovery code isn't right.");
+  await setPassword(newPassword);
+  return createRecoveryCode();
+}
+
+/** Sets a new password after Touch ID on this computer; returns a fresh recovery code. */
+export async function resetWithTouchId(newPassword) {
+  await verifyTouchId();
+  await setPassword(newPassword);
+  return createRecoveryCode();
 }
 
 // ---- Touch ID ------------------------------------------------------------------
@@ -86,16 +132,13 @@ export async function registerTouchId() {
   });
   const pub = cred.response.getPublicKey?.();
   if (!pub) throw new Error("This browser didn't return a public key.");
-  const auth = (await getAuth()) ?? {};
   await chrome.storage.local.set({
-    auth: { ...auth, credential: { id: b64(cred.rawId), publicKey: b64(pub), alg: cred.response.getPublicKeyAlgorithm() } },
+    credential: { id: b64(cred.rawId), publicKey: b64(pub), alg: cred.response.getPublicKeyAlgorithm() },
   });
 }
 
 export async function removeTouchId() {
-  const auth = (await getAuth()) ?? {};
-  delete auth.credential;
-  await chrome.storage.local.set({ auth });
+  await chrome.storage.local.remove("credential");
 }
 
 // WebAuthn ES256 signatures are DER; WebCrypto wants raw r||s.

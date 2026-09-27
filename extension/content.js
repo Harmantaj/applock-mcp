@@ -2,6 +2,7 @@
 // page and covers a locked chat with a lock screen when it is opened directly.
 (() => {
   const { siteForHost, parseChatUrl, keyOf } = globalThis.AppLockSites;
+  const store = globalThis.AppLockStore;
   const site = siteForHost(location.hostname);
   if (!site) return;
 
@@ -51,11 +52,17 @@
       el.removeAttribute("data-applock-hidden");
       el.removeAttribute("data-applock-reveal");
     });
+    const learned = {};
     for (const a of document.querySelectorAll(site.linkSelector)) {
       const hit = parseChatUrl(a.href);
       if (!hit || !lockedSet.has(hit.id)) continue;
       rowFor(a).setAttribute(unlocked ? "data-applock-reveal" : "data-applock-hidden", "");
+      // Locks made on another computer arrive without a title; pick it up here.
+      const t = titleOf(a);
+      const key = keyOf(site.key, hit.id);
+      if (t && locked[key] && locked[key].title !== t) learned[key] = t;
     }
+    if (Object.keys(learned).length) store.rememberTitles(learned).catch(() => {});
     const here = parseChatUrl(location.href);
     if (here && lockedSet.has(here.id) && !unlocked) showOverlay(here);
     else hideOverlay();
@@ -149,18 +156,19 @@
     if (isUnlocked()) expiryTimer = setTimeout(apply, unlockedUntil - Date.now() + 50);
   }
 
-  chrome.storage.local.get(["locked", "unlockedUntil"]).then((s) => {
-    locked = s.locked ?? {};
+  Promise.all([store.getLocked(), chrome.storage.local.get("unlockedUntil")]).then(([l, s]) => {
+    locked = l;
     unlockedUntil = s.unlockedUntil ?? 0;
     scheduleExpiry();
     apply();
   });
 
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== "local") return;
-    if (changes.locked) locked = changes.locked.newValue ?? {};
-    if (changes.unlockedUntil) unlockedUntil = changes.unlockedUntil.newValue ?? 0;
-    if (changes.locked || changes.unlockedUntil) {
+  chrome.storage.onChanged.addListener(async (changes, area) => {
+    const lockChange = store.locksChanged(changes, area);
+    const timeChange = area === "local" && !!changes.unlockedUntil;
+    if (timeChange) unlockedUntil = changes.unlockedUntil.newValue ?? 0;
+    if (lockChange) locked = await store.getLocked();
+    if (lockChange || timeChange) {
       scheduleExpiry();
       apply();
     }

@@ -5,12 +5,13 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { testExtension } from "./test-extension";
 import { CHATGPT_CHATS, mockSites } from "./mock-sites";
 
 // End-to-end: an MCP client (standing in for Claude Code / ChatGPT / Antigravity)
 // asks the AppLock server to lock the chat open in the browser, and the real
-// extension hides it. Uses the extension's fixed bridge port 47521.
-const EXT = resolve(process.cwd(), "extension");
+// extension hides it. Uses a private port so a real AppLock server is never involved.
+const { dir: EXT, port: BRIDGE_PORT } = testExtension();
 const CLI = resolve(process.cwd(), "dist/cli.js");
 
 let ctx: BrowserContext;
@@ -34,6 +35,7 @@ test.beforeAll(async () => {
     APPLOCK_CLAUDE_DIR: join(root, "none"),
     APPLOCK_ANTIGRAVITY_DIRS: join(root, "none"),
     APPLOCK_UNLOCK_URL_FILE: join(root, "unlock-url"),
+    APPLOCK_BRIDGE_PORT: String(BRIDGE_PORT),
   } as Record<string, string>;
   execFileSync(process.execPath, [CLI, "setup", "--passphrase-stdin", "--no-touch-id"], { env, input: "bridge-pass\n" });
   client = new Client({ name: "e2e", version: "1" });
@@ -54,8 +56,8 @@ test.beforeAll(async () => {
   const extId = new URL(sw.url()).host;
   const setup = await ctx.newPage();
   await setup.goto(`chrome-extension://${extId}/options.html`);
-  await setup.getByLabel("New password").fill("pw1234");
-  await setup.getByLabel("Repeat password").fill("pw1234");
+  await setup.getByLabel("New password", { exact: true }).fill("pw1234");
+  await setup.getByLabel("Repeat password", { exact: true }).fill("pw1234");
   await setup.getByRole("button", { name: "Save password" }).click();
   await expect(setup.locator("#pwOk")).toHaveText("Saved.");
   await setup.close();
@@ -102,7 +104,7 @@ test("MCP sees the browser chats and locks the one that is open", async () => {
 });
 
 test("the bridge can never reveal: forged unlock commands are refused", async () => {
-  const locked = await sw.evaluate(async () => Object.keys((await chrome.storage.local.get("locked")).locked).length);
+  const locked = await sw.evaluate(async () => Object.keys(await chrome.storage.sync.get(null)).filter((k) => k.startsWith("lk:")).length);
   expect(locked).toBe(2);
   // Even if something injected an "unlock" command into the queue, the extension rejects it.
   const { writeFileSync, readFileSync } = await import("node:fs");
@@ -132,6 +134,6 @@ test("unlocked vault lists web locks, and restore_hidden refuses to reveal them"
   expect(r.isError).toBe(true);
   expect(r.text).toContain("Remove its lock from the AppLock extension popup");
   // Still locked in the browser.
-  const locked = await sw.evaluate(async () => Object.keys((await chrome.storage.local.get("locked")).locked).length);
+  const locked = await sw.evaluate(async () => Object.keys(await chrome.storage.sync.get(null)).filter((k) => k.startsWith("lk:")).length);
   expect(locked).toBe(2);
 });
