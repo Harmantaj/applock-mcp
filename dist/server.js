@@ -5,14 +5,14 @@ import { findSession, listSessions } from "./sources.js";
 import { touchIdSupported } from "./touchid.js";
 import { createUnlockLink, currentKey, lock, unlockedUntil, unlockWithBrowser, unlockWithTouchId } from "./unlock.js";
 import { findHidden, hiddenCount, hideSession, listHidden, loadConfig, loadPending, readHidden, recordBrowserLock, restoreHidden, savePending, } from "./vault.js";
-export const VERSION = "0.5.0";
+export const VERSION = "0.5.1";
 const INSTRUCTIONS = `AppLock hides private chats. Hiding never needs unlocking. Listing, reading or restoring hidden chats needs unlock_vault, which shows a Touch ID prompt or opens a passphrase page on the user's computer; never ask the user to type their passphrase into chat. For ChatGPT/Claude/Gemini web chats, use hide_browser_chat (needs the AppLock browser extension). Do not repeat hidden chat contents unless the user asks.`;
 const text = (t) => ({ content: [{ type: "text", text: t }] });
 const fail = (t) => ({ content: [{ type: "text", text: t }], isError: true });
 function requireConfig() {
     const cfg = loadConfig();
     if (!cfg)
-        throw new Error("AppLock is not set up yet. In a terminal, run:  applock-mcp setup  (install: npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.5.0/applock-mcp-0.5.0.tgz)");
+        throw new Error("AppLock is not set up yet. In a terminal, run:  applock-mcp setup  (install: npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.5.1/applock-mcp-0.5.1.tgz)");
     return cfg;
 }
 function requireKey() {
@@ -79,6 +79,11 @@ export function createServer(opts = {}) {
             `Touch ID: ${cfg.touchId ? "enabled" : touchIdSupported() ? "not enabled" : "not available on this OS"}`,
             `Auto-lock: ${cfg.autoLockMinutes} min`,
             `Browser extension: ${extensionConnected() ? `connected (${st.lockedCount ?? 0} web chats locked)` : "not connected"}`,
+            ...(st.phone
+                ? [
+                    `Hide on phone (ChatGPT archive): ${st.phone.hiding ? "on" : "off"} · ${st.phone.archived}/${st.phone.chatgptLocked} locked ChatGPT chats archived${st.phone.pending ? ` · ${st.phone.pending} waiting for a ChatGPT tab` : ""}`,
+                ]
+                : []),
             `Pending hides (run when this session ends): ${loadPending().length}`,
         ].join("\n"));
     }));
@@ -145,8 +150,12 @@ export function createServer(opts = {}) {
         inputSchema: {
             chat_id: z.string().min(1).describe('Chat id from list_browser_chats, or "current"'),
             site: z.enum(["chatgpt", "claude", "gemini"]).optional().describe("Needed only when chat_id isn't \"current\" and is ambiguous"),
+            everywhere: z
+                .boolean()
+                .default(false)
+                .describe("ChatGPT only: also archive it in the user's ChatGPT account so it leaves the chat list in the ChatGPT phone and desktop apps"),
         },
-    }, safely(async ({ chat_id, site }) => {
+    }, safely(async ({ chat_id, site, everywhere }) => {
         const cfg = requireConfig();
         if (!extensionConnected())
             return fail("The AppLock browser extension is not connected. Install it and keep a ChatGPT, Claude.ai or Gemini tab open.");
@@ -158,7 +167,7 @@ export function createServer(opts = {}) {
             target = { site, id: chat_id, title: chat_id };
         if (!target)
             return fail(`Unknown chat "${chat_id}". Pass site as well, or pick one from list_browser_chats.`);
-        const cmd = enqueue({ action: "lock", site: target.site, chatId: target.id });
+        const cmd = enqueue({ action: "lock", site: target.site, chatId: target.id, archive: everywhere });
         const r = await waitForResult(cmd.id);
         if (!r)
             return fail("The extension didn't respond within 45 seconds. Is Chrome running on the computer with AppLock enabled?");
@@ -166,7 +175,33 @@ export function createServer(opts = {}) {
             return fail(`The extension couldn't lock it: ${r.error}`);
         const chat = r.chat ?? target;
         recordBrowserLock(cfg, chat);
-        return text(`Locked "${chat.title}" on ${chat.site}. It is hidden from the sidebar and needs Touch ID or the password to open.`);
+        const extra = everywhere && chat.site === "chatgpt"
+            ? " It will also be archived in ChatGPT (gone from the phone app's list) as soon as ChatGPT is open in that browser."
+            : "";
+        return text(`Locked "${chat.title}" on ${chat.site}. It is hidden from the sidebar and needs Touch ID or the password to open.${extra}`);
+    }));
+    server.registerTool("hide_on_phone", {
+        title: "Hide locked ChatGPT chats on the phone too",
+        description: "Turns AppLock's 'Hide on your phone too' on or off. When on, locked ChatGPT chats are also archived in the user's ChatGPT account, so they disappear from the chat list in the ChatGPT iPhone/Android/desktop apps (still listed under ChatGPT's Archived chats). Removing a lock in the browser unarchives it. Claude and Gemini have no archive. Needs the AppLock browser extension.",
+        inputSchema: {
+            on: z.boolean().default(true),
+            apply_to_locked: z.boolean().default(true).describe("Also archive ChatGPT chats that are already locked"),
+        },
+        annotations: { destructiveHint: false, idempotentHint: true },
+    }, safely(async ({ on, apply_to_locked }) => {
+        requireConfig();
+        if (!extensionConnected())
+            return fail("The AppLock browser extension is not connected. Chrome must be running on the computer with AppLock enabled.");
+        const cmd = enqueue({ action: "phoneHiding", on, applyToLocked: apply_to_locked });
+        const r = await waitForResult(cmd.id);
+        if (!r)
+            return fail("The extension didn't respond within 45 seconds. Reload AppLock in chrome://extensions if it was just updated.");
+        if (!r.ok)
+            return fail(`The extension refused: ${r.error}`);
+        if (!on)
+            return text("Hide on phone is off. New locks stay visible in the ChatGPT phone app; chats already archived stay archived until their lock is removed.");
+        const n = r.detail?.queued ?? 0;
+        return text(`Hide on phone is on.${n ? ` ${n} locked ChatGPT chat(s) queued for archiving;` : ""} Archiving happens as soon as chatgpt.com is open in that browser. Check progress with applock_status.`);
     }));
     server.registerTool("unlock_vault", {
         title: "Unlock the vault",

@@ -185,9 +185,20 @@
   async function runServerOps() {
     if (!site.serverArchive || opsRunning) return;
     opsRunning = true;
+    // One tab per browser does the work: take a short lease in local storage.
+    const me = Math.random().toString(36).slice(2);
+    let leased = false;
+    let seen = new Set();
     try {
       const ops = await store.pendingServerOps(site.key);
+      seen = new Set(ops.map((o) => `${o.id}:${o.at}`));
       if (!ops.length) return;
+      const { opsLease } = await chrome.storage.local.get("opsLease");
+      if (opsLease && opsLease.until > Date.now()) return;
+      await chrome.storage.local.set({ opsLease: { owner: me, until: Date.now() + 20000 } });
+      await new Promise((r) => setTimeout(r, 50 + Math.random() * 100));
+      if ((await chrome.storage.local.get("opsLease")).opsLease?.owner !== me) return;
+      leased = true;
       // Firefox runs content-script fetch with the extension's origin; content.fetch
       // makes the request as the page itself, like Chrome does by default.
       const pageFetch = typeof content !== "undefined" && content?.fetch ? content.fetch.bind(content) : fetch;
@@ -209,7 +220,15 @@
     } catch {
       // Network hiccup: the jobs stay queued for next time.
     } finally {
+      if (leased) await chrome.storage.local.remove("opsLease").catch(() => {});
       opsRunning = false;
+      // Jobs that arrived while this run held the lease are picked up next time.
+      // (Failed ones wait for the next page load or change, so a down server isn't hammered.)
+      if (leased)
+        store
+          .pendingServerOps(site.key)
+          .then((o) => o.some((x) => !seen.has(`${x.id}:${x.at}`)) && setTimeout(runServerOps, 500))
+          .catch(() => {});
     }
   }
 

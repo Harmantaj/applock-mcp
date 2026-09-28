@@ -18,6 +18,7 @@ let ctx: BrowserContext;
 let sw: Worker;
 let client: Client;
 let root: string;
+const archived: { id: string; body: any }[] = [];
 
 const call = async (name: string, args: Record<string, unknown> = {}) => {
   const r: any = await client.callTool({ name, arguments: args });
@@ -50,6 +51,13 @@ test.beforeAll(async () => {
     ],
   });
   await mockSites(ctx);
+  await ctx.route("https://chatgpt.com/api/auth/session", (r) =>
+    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ accessToken: "t" }) }),
+  );
+  await ctx.route("https://chatgpt.com/backend-api/conversation/*", async (r) => {
+    archived.push({ id: r.request().url().split("/").pop()!, body: r.request().postDataJSON() });
+    await r.fulfill({ status: 200, contentType: "application/json", body: '{"success":true}' });
+  });
   [sw] = ctx.serviceWorkers();
   sw ??= await ctx.waitForEvent("serviceworker");
   // Give the extension a password, as the user would in onboarding.
@@ -130,4 +138,19 @@ test("unlocked vault lists web locks, and restore_hidden refuses to reveal them"
   // Still locked in the browser.
   const locked = await sw.evaluate(async () => Object.keys(await chrome.storage.sync.get(null)).filter((k) => k.startsWith("lk:")).length);
   expect(locked).toBe(2);
+});
+
+test("hide_on_phone: the AI turns on phone hiding and already-locked ChatGPT chats get archived", async () => {
+  const page = await ctx.newPage();
+  await open(page, "https://chatgpt.com/");
+  const r = await call("hide_on_phone", {});
+  expect(r.isError, r.text).toBe(false);
+  expect(r.text).toContain("2 locked ChatGPT chat(s) queued");
+  await expect.poll(() => archived.length, { timeout: 20_000 }).toBe(2);
+  expect(archived.every((a) => a.body.is_archived === true)).toBe(true);
+  await expect
+    .poll(async () => (await call("applock_status")).text, { timeout: 45_000 })
+    .toContain("Hide on phone (ChatGPT archive): on · 2/2 locked ChatGPT chats archived");
+  expect(await sw.evaluate(async () => (await chrome.storage.sync.get("prefs")).prefs)).toEqual({ archiveOnLock: true });
+  await page.close();
 });
