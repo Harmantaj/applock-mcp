@@ -32,13 +32,17 @@
   // ---- DOM pass: hide the whole row, not just the link -----------------------------
   const STOP = new Set(["NAV", "OL", "UL", "ASIDE", "MAIN", "BODY", "HTML", "SECTION"]);
 
+  /** The whole sidebar row for a chat link: the largest ancestor (up to 4 levels)
+   * that still contains only this one chat link. Works for ChatGPT's <li> rows,
+   * Claude's <div> rows (link + menu button) and Gemini's conversation items. */
   function rowFor(a) {
-    const li = a.closest("li");
-    if (li && li.querySelectorAll(site.linkSelector).length === 1) return li;
     let el = a;
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       const p = el.parentElement;
-      if (!p || STOP.has(p.tagName) || p.children.length !== 1) break;
+      if (!p || STOP.has(p.tagName)) break;
+      let chats = 0;
+      for (const x of p.querySelectorAll(site.linkSelector)) if (parseChatUrl(x.href) && ++chats > 1) break;
+      if (chats !== 1) break;
       el = p;
     }
     return el;
@@ -66,6 +70,7 @@
     const here = parseChatUrl(location.href);
     if (here && lockedSet.has(here.id) && !unlocked) showOverlay(here);
     else hideOverlay();
+    updateFab();
     report();
   }
 
@@ -109,8 +114,14 @@
   }).observe(document.documentElement, { subtree: true, childList: true, characterData: true });
 
   // ---- reporting to the service worker (feeds the MCP bridge) -------------------
+  /** Visible text of a chat link, ignoring buttons inside it (ChatGPT nests its "⋯" menu). */
   function titleOf(a) {
-    return (a.textContent || "").replace(/\s+/g, " ").trim().slice(0, 120);
+    let text = "";
+    const walk = document.createTreeWalker(a, NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => (n.parentElement?.closest("button, [role=button]") && a.contains(n.parentElement.closest("button, [role=button]")) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+    });
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) text += n.nodeValue + " ";
+    return text.replace(/\s+/g, " ").trim().slice(0, 120);
   }
 
   function currentChat() {
@@ -142,6 +153,66 @@
     chrome.runtime.sendMessage({ type: "report", site: site.key, ...payload }).catch(() => {});
   }
 
+  // ---- lock button for phones (no shortcuts or right-click there) ---------------------
+  let fab;
+  async function updateFab() {
+    const { settings = {} } = await chrome.storage.local.get("settings");
+    const mode = settings.lockButton ?? "auto"; // auto = touch screens only
+    const want = mode === "always" || (mode === "auto" && matchMedia("(pointer: coarse)").matches);
+    const here = parseChatUrl(location.href);
+    const show = want && here && !locked[keyOf(site.key, here.id)] && !overlay;
+    if (!show) return void fab?.remove();
+    if (fab?.isConnected) return;
+    fab = document.createElement("div");
+    fab.id = "applock-fab";
+    const root = fab.attachShadow({ mode: "closed" });
+    root.innerHTML = `<style>
+      button{position:fixed;right:14px;bottom:calc(88px + env(safe-area-inset-bottom));z-index:2147483646;width:44px;height:44px;border-radius:22px;border:0;
+        background:#3a3f9e;color:#fff;font-size:20px;box-shadow:0 6px 18px rgba(0,0,0,.25);touch-action:manipulation}
+      button:focus-visible{outline:3px solid #8f95ff;outline-offset:2px}
+    </style><button type="button" aria-label="Lock this chat with AppLock">🔒</button>`;
+    root.querySelector("button").addEventListener("click", async () => {
+      const chat = currentChat();
+      if (chat) await chrome.runtime.sendMessage({ type: "lock", ...chat });
+    });
+    document.documentElement.appendChild(fab);
+  }
+
+  // ---- server-side archive (ChatGPT) ----------------------------------------------
+  // Uses the same endpoints as ChatGPT's own Archive / Unarchive menu items, with
+  // the signed-in session of this tab. Jobs come from any of the user's computers.
+  let opsRunning = false;
+  async function runServerOps() {
+    if (!site.serverArchive || opsRunning) return;
+    opsRunning = true;
+    try {
+      const ops = await store.pendingServerOps(site.key);
+      if (!ops.length) return;
+      // Firefox runs content-script fetch with the extension's origin; content.fetch
+      // makes the request as the page itself, like Chrome does by default.
+      const pageFetch = typeof content !== "undefined" && content?.fetch ? content.fetch.bind(content) : fetch;
+      const session = await pageFetch("/api/auth/session", { credentials: "include" }).then((r) => (r.ok ? r.json() : null));
+      const token = session?.accessToken;
+      if (!token) return; // signed out: try again later
+      for (const op of ops) {
+        const res = await pageFetch(`/backend-api/conversation/${encodeURIComponent(op.id)}`, {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+          body: JSON.stringify({ is_archived: op.archived }),
+        });
+        if (res.ok || res.status === 404) {
+          await store.clearServerOp(site.key, op.id);
+          if (res.ok) await store.markArchived(site.key, op.id, op.archived);
+        }
+      }
+    } catch {
+      // Network hiccup: the jobs stay queued for next time.
+    } finally {
+      opsRunning = false;
+    }
+  }
+
   chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     if (msg.type === "getCurrentChat") reply(currentChat());
     if (msg.type === "titleFor") {
@@ -161,6 +232,14 @@
     unlockedUntil = s.unlockedUntil ?? 0;
     scheduleExpiry();
     apply();
+  });
+
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "sync" && Object.keys(changes).some((k) => k.startsWith(`op:${site.key}:`))) runServerOps();
+  });
+  if (site.serverArchive) setTimeout(runServerOps, 1500);
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.settings) updateFab();
   });
 
   chrome.storage.onChanged.addListener(async (changes, area) => {

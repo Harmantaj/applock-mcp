@@ -1,3 +1,4 @@
+import "./store.js";
 import {
   createRecoveryCode,
   getAuth,
@@ -53,9 +54,14 @@ async function render() {
   $("resetCode").hidden = !hasCode;
   $("noWay").hidden = !!auth?.credential || hasCode;
 
+  const prefs = await globalThis.AppLockStore.getPrefs();
+  $("archiveOnLock").checked = prefs.archiveOnLock;
+  $("phoneCard").hidden = !has;
+
   const s = await getSettings();
   $("mins").value = s.autoLockMinutes;
   $("bridge").checked = s.bridge;
+  $("lockButton").value = s.lockButton ?? "auto";
 }
 
 async function saveSettings(patch) {
@@ -167,6 +173,16 @@ $("mins").addEventListener("change", () => {
   saveSettings({ autoLockMinutes: n });
 });
 $("bridge").addEventListener("change", () => saveSettings({ bridge: $("bridge").checked }));
+$("lockButton").addEventListener("change", () => saveSettings({ lockButton: $("lockButton").value }));
+$("archiveOnLock").addEventListener("change", () => globalThis.AppLockStore.setPrefs({ archiveOnLock: $("archiveOnLock").checked }));
+$("archiveExisting").addEventListener("click", async () => {
+  const r = await chrome.runtime.sendMessage({ type: "archiveExisting" });
+  $("archiveOk").textContent = r?.ok
+    ? r.value
+      ? `Queued ${r.value}. They’re archived next time ChatGPT is open in this browser.`
+      : "Nothing to archive."
+    : r?.error ?? "Couldn’t queue that.";
+});
 window.addEventListener("hashchange", render);
 
 render();

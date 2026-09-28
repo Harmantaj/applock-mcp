@@ -14,12 +14,21 @@ ChatGPT, Claude.ai and Gemini keep chats on their servers. An MCP server only gi
 ## Install
 
 ```bash
-npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.4.1/applock-mcp-0.4.1.tgz
+npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.5.0/applock-mcp-0.5.0.tgz
 applock-mcp setup                 # passphrase + optional Touch ID
 applock-mcp install claude        # or: antigravity | chatgpt
 ```
 
-Browser extension: download `applock-extension.zip` from the website (or use the `extension/` folder), open `chrome://extensions`, enable Developer mode, **Load unpacked**.
+Browser extension: download `applock-chrome.zip` or `applock-firefox.zip` from the [latest release](https://github.com/Harmantaj/applock-mcp/releases/latest). Chrome/Edge/Brave/Arc: unzip, `chrome://extensions` › Developer mode › **Load unpacked**. Firefox: `about:debugging` › This Firefox › Load Temporary Add-on (a permanent install needs the addons.mozilla.org listing). Build both with `node scripts/build-extensions.mjs`.
+
+### On your phone
+
+No app or extension can change the ChatGPT/Claude/Gemini phone apps, so AppLock covers phones in layers:
+
+1. **Hide on your phone too** (setting, ChatGPT only): locking also archives the chat through ChatGPT's own API, so it leaves the chat list in the iPhone/Android/Mac apps; removing the lock unarchives it. Jobs sync, so a lock made anywhere is archived by whichever computer next has ChatGPT open.
+2. **Per-chat lock in a phone browser**: Firefox for Android, or Orion (Kagi) on iPhone/iPad, with the Firefox build installed. A lock button appears on chat pages on touch screens.
+3. **Face ID for the whole app**: iOS 18 *Require Face ID*; Android 15 *Private space*.
+4. **Phone connector** (below) to control your Mac from Claude on the phone.
 
 ### Claude everywhere (web, desktop, iPhone, Android) and ChatGPT on the web
 

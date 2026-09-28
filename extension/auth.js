@@ -103,8 +103,12 @@ export async function resetWithTouchId(newPassword) {
 
 // ---- Touch ID ------------------------------------------------------------------
 
+// Firefox extension pages can hang on WebAuthn (bugzilla 1693562), so there the
+// password is used instead.
+const isFirefox = typeof browser !== "undefined" && !!browser.runtime?.getBrowserInfo;
+
 export function touchIdPossible() {
-  return !!window.PublicKeyCredential?.isUserVerifyingPlatformAuthenticatorAvailable;
+  return !isFirefox && !!window.PublicKeyCredential?.isUserVerifyingPlatformAuthenticatorAvailable;
 }
 
 export async function touchIdAvailable() {

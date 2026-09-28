@@ -6,6 +6,8 @@
   <link rel="stylesheet" href="ui.css">
   <style>
     body { width: 340px; padding: 14px; }
+    /* Phone browsers (Firefox Android, Orion) open the popup as a full page. */
+    @media (max-width: 520px) { body { width: auto; max-width: 520px; margin: 0 auto; } }
     header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
     .pill { font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: var(--panel); }
     .pill.open { color: var(--ok); }
@@ -32,6 +34,7 @@
       <p id="curTitle" class="muted">Open a ChatGPT, Claude or Gemini chat to lock it.</p>
       <button class="primary" id="lockBtn" hidden>Lock this chat</button>
       <button class="danger" id="unlockBtn" hidden>Remove lock</button>
+      <p class="muted" id="phoneTip" style="font-size:13px" hidden>Still visible in the ChatGPT phone app. Turn on <button class="link" id="phoneTipLink" type="button" style="padding:0">Hide on your phone too</button> in settings.</p>
     </section>
 
     <section class="card stack" id="unlockCard">

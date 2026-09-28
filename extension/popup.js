@@ -29,6 +29,8 @@ async function render() {
     $("curTitle").classList.toggle("muted", false);
     $("lockBtn").hidden = isLocked;
     $("unlockBtn").hidden = !isLocked || !unlocked;
+    const prefs = await globalThis.AppLockStore.getPrefs();
+    $("phoneTip").hidden = !(isLocked && current.site === "chatgpt" && !prefs.archiveOnLock);
   }
 
   const list = $("lockedList");
@@ -86,6 +88,7 @@ function err(e) {
 }
 
 $("openSetup").onclick = () => chrome.runtime.openOptionsPage();
+$("phoneTipLink").onclick = () => chrome.runtime.openOptionsPage();
 $("forgot").onclick = () => chrome.tabs.create({ url: chrome.runtime.getURL("options.html#recover") });
 $("settings").onclick = () => chrome.runtime.openOptionsPage();
 $("lockBtn").onclick = async () => {
