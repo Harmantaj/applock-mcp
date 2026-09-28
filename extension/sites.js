@@ -10,6 +10,9 @@
       chatId: (path) => path.match(/\/c\/([0-9a-zA-Z-]{8,})/)?.[1],
       linkSelector: 'a[href*="/c/"]',
       chatUrl: (id) => `https://chatgpt.com/c/${id}`,
+      // ChatGPT keeps an archive on its servers: archived chats leave the chat
+      // list in every ChatGPT app (web, desktop, iPhone, Android).
+      serverArchive: true,
     },
     {
       key: "claude",

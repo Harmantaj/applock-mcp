@@ -29,6 +29,9 @@ async function lockChat({ site, id, title }) {
   const lock = await store.addLock({ site, id, title: (title || "").slice(0, 200) });
   // Locking always re-hides everything, like closing a locked note.
   await chrome.storage.local.set({ unlockedUntil: 0 });
+  if (SITES.find((s) => s.key === site)?.serverArchive && (await store.getPrefs()).archiveOnLock) {
+    await store.queueServerOp(site, id, true);
+  }
   return { ...lock, title: lock.title || id };
 }
 
@@ -36,7 +39,25 @@ async function unlockChat({ site, id }) {
   const { unlockedUntil = 0 } = await chrome.storage.local.get("unlockedUntil");
   // Removing a lock is only allowed while the user has authenticated.
   if (Date.now() >= unlockedUntil) throw new Error("Unlock AppLock first.");
+  const lock = (await store.getLocked())[`${site}:${id}`];
+  const pending = (await store.pendingServerOps(site)).find((o) => o.id === id);
   await store.removeLock(site, id);
+  // Put the chat back in the provider's chat list if AppLock archived it.
+  if (pending?.archived && !lock?.archived) await store.clearServerOp(site, id);
+  else if (lock?.archived) await store.queueServerOp(site, id, false);
+}
+
+/** Archives every locked chat that isn't archived yet (after turning the setting on). */
+async function archiveExistingLocks() {
+  const locked = Object.values(await store.getLocked());
+  let n = 0;
+  for (const l of locked) {
+    if (SITES.find((s) => s.key === l.site)?.serverArchive && !l.archived) {
+      await store.queueServerOp(l.site, l.id, true);
+      n++;
+    }
+  }
+  return n;
 }
 
 async function titleFromTab(tabId, id) {
@@ -111,6 +132,8 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         if (sender.tab?.id && site) return chrome.tabs.update(sender.tab.id, { url: `https://${site.hosts[0]}/` });
         return;
       }
+      case "archiveExisting":
+        return archiveExistingLocks();
       case "openRecovery":
         return chrome.tabs.create({ url: chrome.runtime.getURL("options.html#recover") });
       case "report":

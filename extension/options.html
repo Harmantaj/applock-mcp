@@ -73,8 +73,19 @@
     <section class="card stack">
       <h2>4 · Behaviour</h2>
       <div class="field"><label for="mins">Re-lock after (minutes)</label><input id="mins" type="number" min="1" max="120" inputmode="numeric" style="max-width:120px"></div>
+      <div class="field"><label for="lockButton">Lock button on chat pages</label>
+        <select id="lockButton" style="max-width:240px;font:inherit;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text)">
+          <option value="auto">On touch screens (phones, tablets)</option><option value="always">Always</option><option value="never">Never</option>
+        </select></div>
       <label class="check"><input type="checkbox" id="bridge"> Let the AppLock MCP server on this computer lock chats for me (it can only lock, never reveal)</label>
       <p class="muted" style="font-size:13px">Shortcuts: <kbd>Option</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> locks the open chat · <kbd>Option</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> hides everything again. You can also right-click any chat in the sidebar.</p>
+    </section>
+
+    <section class="card stack" id="phoneCard">
+      <h2>Hide on your phone too</h2>
+      <label class="check"><input type="checkbox" id="archiveOnLock"> When I lock a ChatGPT chat, also archive it in ChatGPT</label>
+      <p class="muted" style="font-size:13px">Archived chats leave the chat list in every ChatGPT app — iPhone, Android, Mac and the web — not just this browser. Removing the lock in AppLock puts the chat back. Archiving isn’t a lock: anyone using your ChatGPT app can still open Settings › Archived chats, so also turn on Face ID for the ChatGPT app on your phone. Claude and Gemini have no archive, so their chats stay visible in their phone apps.</p>
+      <div class="row"><button id="archiveExisting" type="button">Archive the ChatGPT chats I already locked</button><span class="ok" id="archiveOk" role="status"></span></div>
     </section>
 
     <section class="card stack">

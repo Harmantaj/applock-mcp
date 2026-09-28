@@ -3,6 +3,9 @@
 // chrome.storage.sync (follows the user's Chrome account to their other computers):
 //   "lk:<site>:<id>" -> { site, id, lockedAt }   one key per locked chat, no titles
 //   "auth"           -> { salt, hash, iterations, recoverySalt?, recoveryHash? }
+//   "prefs"          -> { archiveOnLock }             account-wide preferences
+//   "op:<site>:<id>" -> { site, id, archived, at }  server-side archive jobs; any
+//                       computer with that site open carries them out
 // chrome.storage.local (this computer only):
 //   "titles"         -> { "<site>:<id>": title }  so chat titles never leave the device
 //   "credential"     -> Touch ID (WebAuthn) key, which is bound to this device anyway
@@ -102,5 +105,45 @@
     await chrome.storage.sync.set({ auth: { ...auth, ...patch } });
   }
 
-  globalThis.AppLockStore = { PREFIX, keyOf, ready, getLocked, addLock, removeLock, rememberTitles, locksChanged, getAuth, saveAuth };
+  // ---- preferences and server-side (archive) jobs ------------------------------------
+
+  async function getPrefs() {
+    await ready();
+    return { archiveOnLock: false, ...((await chrome.storage.sync.get("prefs")).prefs ?? {}) };
+  }
+
+  async function setPrefs(patch) {
+    const prefs = await getPrefs();
+    await chrome.storage.sync.set({ prefs: { ...prefs, ...patch } });
+  }
+
+  async function queueServerOp(site, id, archived) {
+    await chrome.storage.sync.set({ [`op:${site}:${id}`]: { site, id, archived, at: Date.now() } });
+  }
+
+  async function pendingServerOps(site) {
+    const all = await chrome.storage.sync.get(null);
+    return Object.entries(all)
+      .filter(([k]) => k.startsWith(`op:${site}:`))
+      .map(([, v]) => v);
+  }
+
+  async function clearServerOp(site, id) {
+    await chrome.storage.sync.remove(`op:${site}:${id}`);
+  }
+
+  /** Records on the lock whether the chat is archived on the provider's side. */
+  async function markArchived(site, id, archived) {
+    const key = PREFIX + keyOf(site, id);
+    const cur = (await chrome.storage.sync.get(key))[key];
+    if (cur) await chrome.storage.sync.set({ [key]: { ...cur, archived } });
+  }
+
+  globalThis.AppLockStore = {
+    getPrefs,
+    setPrefs,
+    queueServerOp,
+    pendingServerOps,
+    clearServerOp,
+    markArchived, PREFIX, keyOf, ready, getLocked, addLock, removeLock, rememberTitles, locksChanged, getAuth, saveAuth };
 })();

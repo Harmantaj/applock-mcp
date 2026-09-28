@@ -16,3 +16,26 @@ export function testExtension(port = 40000 + Math.floor(Math.random() * 20000)) 
   }
   return { dir, port };
 }
+
+/**
+ * Sets the extension password through the setup page the extension opens itself
+ * on first install (opening a second copy races with it).
+ */
+export async function setupPassword(ctx: import("@playwright/test").BrowserContext, extId: string, password: string) {
+  const url = `chrome-extension://${extId}/options.html`;
+  let page = ctx.pages().find((p) => p.url().startsWith(url));
+  for (let i = 0; !page && i < 30; i++) {
+    await new Promise((r) => setTimeout(r, 100));
+    page = ctx.pages().find((p) => p.url().startsWith(url));
+  }
+  if (!page) {
+    page = await ctx.newPage();
+    await page.goto(url);
+  }
+  await page.waitForLoadState();
+  await page.getByLabel("New password", { exact: true }).fill(password);
+  await page.getByLabel("Repeat password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Save password" }).click();
+  await page.getByRole("button", { name: "I’ve saved it" }).click();
+  await page.close();
+}

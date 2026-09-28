@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { testExtension } from "./test-extension";
+import { setupPassword, testExtension } from "./test-extension";
 import { CHATGPT_CHATS, mockSites } from "./mock-sites";
 
 // End-to-end: an MCP client (standing in for Claude Code / ChatGPT / Antigravity)
@@ -54,13 +54,7 @@ test.beforeAll(async () => {
   sw ??= await ctx.waitForEvent("serviceworker");
   // Give the extension a password, as the user would in onboarding.
   const extId = new URL(sw.url()).host;
-  const setup = await ctx.newPage();
-  await setup.goto(`chrome-extension://${extId}/options.html`);
-  await setup.getByLabel("New password", { exact: true }).fill("pw1234");
-  await setup.getByLabel("Repeat password", { exact: true }).fill("pw1234");
-  await setup.getByRole("button", { name: "Save password" }).click();
-  await expect(setup.locator("#pwOk")).toHaveText("Saved.");
-  await setup.close();
+  await setupPassword(ctx, extId, "pw1234");
 });
 
 test.afterAll(async () => {

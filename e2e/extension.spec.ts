@@ -191,7 +191,9 @@ test("Claude.ai and Gemini sidebars are handled too", async ({ ctx: context, sw 
   const claude = await context.newPage();
   await open(claude, "https://claude.ai/new");
   await expect(sidebarLink(claude, CLAUDE_CHATS[0].title)).toBeHidden();
-  await expect(claude.locator("li", { hasText: CLAUDE_CHATS[0].title })).toBeHidden();
+  // The whole row goes, including its menu button.
+  await expect(claude.getByRole("button", { name: `More options for ${CLAUDE_CHATS[0].title}` })).toBeHidden();
+  await expect(claude.getByRole("button", { name: `More options for ${CLAUDE_CHATS[1].title}` })).toBeVisible();
   await expect(sidebarLink(claude, CLAUDE_CHATS[1].title)).toBeVisible();
   // The title of a lock made elsewhere is learned locally from the (hidden) sidebar row.
   await expect

@@ -40,12 +40,17 @@ const spa = (sidebar: string, titleFor: string) => `<!doctype html><html><head><
 const titleMap = (chats: { id: string; title: string }[]) => JSON.stringify(Object.fromEntries(chats.map((c) => [c.id, c.title])));
 
 export const chatgptHtml = spa(
-  // ChatGPT: links are direct children of one list container.
-  `<div id="history"><h2>Chats</h2>${CHATGPT_CHATS.map((c) => `<a href="/c/${c.id}" data-testid="chat"><div class="truncate">${c.title}</div></a>`).join("")}</div>`,
+  // Mirrors chatgpt.com (checked Sept 2026): ul > li > a[href=/c/<id>] with an options button inside.
+  `<h2>Chats</h2><ul id="history">${CHATGPT_CHATS.map(
+    (c, i) => `<li><a href="/c/${c.id}"><div><div class="truncate">${c.title}</div><button data-testid="history-item-${i}-options" data-conversation-options-trigger="${c.id}" aria-label="Open conversation options">⋯</button></div></a></li>`,
+  ).join("")}</ul>`,
   titleMap(CHATGPT_CHATS),
 );
 export const claudeHtml = spa(
-  `<ul>${CLAUDE_CHATS.map((c) => `<li><a href="/chat/${c.id}"><span>${c.title}</span></a></li>`).join("")}</ul>`,
+  // Mirrors claude.ai (checked Sept 2026): div rows holding the link and a "⋯" menu button.
+  `<div class="recents">${CLAUDE_CHATS.map(
+    (c) => `<div class="row"><div><div><a href="/chat/${c.id}"><span>${c.title}</span></a><button aria-label="More options for ${c.title}">⋯</button></div></div></div>`,
+  ).join("")}</div>`,
   titleMap(CLAUDE_CHATS),
 );
 export const geminiHtml = spa(
