@@ -26,6 +26,7 @@
     <a href="#how">How it works</a>
     <a href="#install">Install</a>
     <a href="#tools">Tools</a>
+    <a href="#phone">Phone</a>
     <a href="#security">Security</a>
     <a href="https://github.com/Harmantaj/applock-mcp">GitHub</a>
   </nav>
@@ -119,7 +120,7 @@
     <ol class="steps">
       <li>
         <h3>Install the MCP server</h3>
-        <pre><code>npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.4.1/applock-mcp-0.4.1.tgz</code></pre>
+        <pre><code>npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.5.0/applock-mcp-0.5.0.tgz</code></pre>
         <p>This adds the <code>applock-mcp</code> command.</p>
       </li>
       <li>
@@ -173,7 +174,7 @@
       </li>
       <li>
         <h3>Add the browser extension</h3>
-        <p><a class="button small" href="applock-extension.zip" download>Download the extension (.zip, 30 KB)</a></p>
+        <p><a class="button small" href="applock-extension.zip" download>Download for Chrome, Edge, Brave, Arc (.zip)</a> <a class="button small ghost" href="applock-firefox.zip" download>Download for Firefox (.zip)</a></p>
         <p>Unzip it. In Chrome open <code>chrome://extensions</code>, turn on <strong>Developer mode</strong>, choose <strong>Load unpacked</strong> and select the unzipped folder. AppLock opens its setup page: pick a password, save the recovery code it shows you, and turn on Touch ID.</p>
         <p>To lock a chat, open it and click the AppLock icon, right-click it in the sidebar, or press <kbd>Option</kbd> <kbd>Shift</kbd> <kbd>L</kbd> (<kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>L</kbd> on Windows). Press <kbd>Option</kbd> <kbd>Shift</kbd> <kbd>K</kbd> to hide everything again. To see a locked chat, click the AppLock icon and unlock with Touch ID or your password.</p>
         <p>Using Chrome on more than one computer? Install AppLock on each one. Your locks and password follow your Chrome profile through Chrome sync.</p>
@@ -202,6 +203,29 @@
       </table>
     </div>
     <p>Prefer the terminal? <code>applock-mcp list</code>, <code>hide</code>, <code>hidden</code>, <code>restore</code>, <code>passwd</code> and <code>touchid on|off</code> do the same without an AI.</p>
+  </section>
+
+  <section id="phone" class="band">
+    <h2>On your phone</h2>
+    <p class="section-lede">Apple and Google don’t let any app or extension change the ChatGPT, Claude or Gemini phone apps, so no tool can put a lock on one chat inside them. AppLock covers your phone in three ways instead. Use the ones that fit.</p>
+    <div class="facts">
+      <div>
+        <h3>1. Hide it from every ChatGPT app</h3>
+        <p>Turn on <strong>Hide on your phone too</strong> in AppLock’s settings. Locking a ChatGPT chat then also archives it in your ChatGPT account, so it leaves the chat list in the iPhone, Android and Mac apps. Removing the lock brings it back. Archived chats are still listed under ChatGPT’s Settings › Archived chats, so pair this with Face ID on the app (step 3). Claude and Gemini have no archive, so this is ChatGPT only.</p>
+      </div>
+      <div>
+        <h3>2. A real per-chat lock in a phone browser</h3>
+        <p>Use chatgpt.com, claude.ai or gemini.google.com in a browser that runs extensions, with AppLock installed: <strong>Firefox for Android</strong>, or <strong>Orion</strong> by Kagi on iPhone and iPad (it installs Firefox and Chrome extensions). You get the same hidden chats and lock screen as on your computer, with a lock button on chat pages. Add the site to your Home Screen from that browser for an app-like icon.</p>
+      </div>
+      <div>
+        <h3>3. Lock the whole app with Face ID</h3>
+        <p>iPhone (iOS 18 or later): touch and hold the ChatGPT, Claude or Gemini icon › <strong>Require Face ID</strong>. Android 15 or later: move the app into <strong>Private space</strong>. Nobody can open it without you, though it locks every chat, not just one.</p>
+      </div>
+      <div>
+        <h3>4. Control your Mac from Claude on your phone</h3>
+        <p>With the <a href="#install">phone connector</a>, ask Claude on your phone to lock everything on your Mac, hide a Claude Code session, or lock a ChatGPT chat in your Mac’s Chrome.</p>
+      </div>
+    </div>
   </section>
 
   <section id="security" class="band">
@@ -246,8 +270,8 @@
     </details>
     <details>
       <summary>Do my locks work on my other computers and my phone?</summary>
-      <p><strong>Other computers:</strong> yes. Locks and your password travel with Chrome sync, so install AppLock in Chrome on the other computer, signed in to the same Chrome profile, and your locked chats are hidden there too. Only the chat IDs sync, never the titles. Set up Touch ID separately on each Mac.</p>
-      <p><strong>Phone:</strong> no extension can reach inside the ChatGPT, Claude or Gemini apps, and the chats still exist in your account. On iPhone (iOS 18 or later), lock the whole app instead: touch and hold the ChatGPT icon, choose <strong>Require Face ID</strong>, then confirm. Choose <strong>Hide and Require Face ID</strong> to also move it to the hidden apps folder. On Android 15 or later, put the app in <strong>Private space</strong>.</p>
+      <p><strong>Other computers:</strong> yes. Locks and your password travel with Chrome sync, so install AppLock in Chrome on the other computer, signed in to the same Chrome profile. Only chat IDs sync, never titles. Set up Touch ID separately on each Mac.</p>
+      <p><strong>Phone:</strong> see <a href="#phone">On your phone</a>. In short: turn on “Hide on your phone too” for ChatGPT, use Firefox (Android) or Orion (iPhone) with AppLock for a real per-chat lock, and require Face ID for the apps.</p>
     </details>
     <details>
       <summary>Can I hide the Claude Code session I’m in right now?</summary>
