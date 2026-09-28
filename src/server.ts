@@ -18,7 +18,8 @@ import {
   type Config,
 } from "./vault.js";
 
-export const VERSION = "0.5.1";
+export { VERSION } from "./version.js";
+import { VERSION } from "./version.js";
 
 const INSTRUCTIONS = `AppLock hides private chats. Hiding never needs unlocking. Listing, reading or restoring hidden chats needs unlock_vault, which shows a Touch ID prompt or opens a passphrase page on the user's computer; never ask the user to type their passphrase into chat. For ChatGPT/Claude/Gemini web chats, use hide_browser_chat (needs the AppLock browser extension). Do not repeat hidden chat contents unless the user asks.`;
 
