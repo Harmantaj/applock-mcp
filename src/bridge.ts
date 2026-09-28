@@ -18,7 +18,13 @@ export interface BrowserChat {
 
 export interface BridgeCommand {
   id: string;
-  action: "lock" | "relock";
+  action: "lock" | "relock" | "phoneHiding";
+  /** lock: also archive on the provider so it leaves the phone apps' lists. */
+  archive?: boolean;
+  /** phoneHiding: turn "Hide on your phone too" on or off. */
+  on?: boolean;
+  /** phoneHiding: also archive chats that are already locked. */
+  applyToLocked?: boolean;
   site?: string;
   chatId?: string;
   current?: boolean;
@@ -31,7 +37,8 @@ export interface BridgeState {
   active?: BrowserChat | null;
   chats?: BrowserChat[];
   lockedCount?: number;
-  results?: Record<string, { ok: boolean; chat?: BrowserChat; error?: string; at: string }>;
+  phone?: { hiding: boolean; archived: number; pending: number; chatgptLocked: number };
+  results?: Record<string, { ok: boolean; chat?: BrowserChat; error?: string; detail?: any; at: string }>;
 }
 
 function readJson<T>(path: string, fallback: T): T {
@@ -123,9 +130,10 @@ export async function handleBridge(req: IncomingMessage, res: ServerResponse) {
     if ("active" in b) next.active = b.active ?? null;
     if (Array.isArray(b.chats)) next.chats = b.chats.slice(0, 500);
     if (typeof b.lockedCount === "number") next.lockedCount = b.lockedCount;
+    if (b.phone && typeof b.phone === "object") next.phone = b.phone;
     if (Array.isArray(b.results)) {
       next.results = { ...(state.results ?? {}) };
-      for (const r of b.results) next.results[r.id] = { ok: !!r.ok, chat: r.chat, error: r.error, at: now };
+      for (const r of b.results) next.results[r.id] = { ok: !!r.ok, chat: r.chat, error: r.error, detail: r.detail, at: now };
       // Keep the results map small.
       const keys = Object.keys(next.results);
       for (const k of keys.slice(0, Math.max(0, keys.length - 50))) delete next.results[k];

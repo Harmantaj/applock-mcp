@@ -162,7 +162,17 @@ async function syncBridge() {
   lastSync = Date.now();
   try {
     const locked = await getLocked();
-    const body = { lockedCount: Object.keys(locked).length, results };
+    const lockedList = Object.values(locked);
+    const body = {
+      lockedCount: lockedList.length,
+      results,
+      phone: {
+        hiding: (await store.getPrefs()).archiveOnLock,
+        archived: lockedList.filter((l) => l.archived).length,
+        pending: (await store.pendingServerOps("chatgpt")).length,
+        chatgptLocked: lockedList.filter((l) => l.site === "chatgpt").length,
+      },
+    };
     if (lastReport && Date.now() - lastReport.at < 15000) {
       body.active = lastReport.active;
       body.chats = lastReport.chats;
@@ -177,7 +187,16 @@ async function syncBridge() {
         if (cmd.action === "lock") {
           const title = lastReport?.chats?.find((c) => c.id === cmd.chatId)?.title ?? (lastReport?.active?.id === cmd.chatId ? lastReport.active.title : undefined);
           const chat = await lockChat({ site: cmd.site, id: cmd.chatId, title });
+          // "everywhere": also archive on the provider (hides it in the phone apps).
+          if (cmd.archive && SITES.find((s) => s.key === chat.site)?.serverArchive && !(await store.getPrefs()).archiveOnLock) {
+            await store.queueServerOp(chat.site, chat.id, true);
+          }
           results.push({ id: cmd.id, ok: true, chat: { site: chat.site, id: chat.id, title: chat.title } });
+        } else if (cmd.action === "phoneHiding") {
+          // Hiding more strongly is allowed from the MCP server; revealing never is.
+          await store.setPrefs({ archiveOnLock: !!cmd.on });
+          const queued = cmd.on && cmd.applyToLocked ? await archiveExistingLocks() : 0;
+          results.push({ id: cmd.id, ok: true, detail: { on: !!cmd.on, queued } });
         } else if (cmd.action === "relock") {
           await chrome.storage.local.set({ unlockedUntil: 0 });
           results.push({ id: cmd.id, ok: true });

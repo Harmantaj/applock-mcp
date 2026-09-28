@@ -88,10 +88,12 @@ export async function handleBridge(req, res) {
             next.chats = b.chats.slice(0, 500);
         if (typeof b.lockedCount === "number")
             next.lockedCount = b.lockedCount;
+        if (b.phone && typeof b.phone === "object")
+            next.phone = b.phone;
         if (Array.isArray(b.results)) {
             next.results = { ...(state.results ?? {}) };
             for (const r of b.results)
-                next.results[r.id] = { ok: !!r.ok, chat: r.chat, error: r.error, at: now };
+                next.results[r.id] = { ok: !!r.ok, chat: r.chat, error: r.error, detail: r.detail, at: now };
             // Keep the results map small.
             const keys = Object.keys(next.results);
             for (const k of keys.slice(0, Math.max(0, keys.length - 50)))

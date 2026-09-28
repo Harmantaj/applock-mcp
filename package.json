@@ -1,6 +1,6 @@
 {
   "name": "applock-mcp",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Lock and hide AI chats (Claude Code, Antigravity, ChatGPT) behind Touch ID or a passphrase. MCP server + browser extension.",
   "type": "module",
   "bin": {
