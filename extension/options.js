@@ -1,3 +1,4 @@
+import "./selfupdate.js";
 import "./store.js";
 import {
   createRecoveryCode,
