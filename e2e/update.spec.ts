@@ -19,6 +19,11 @@ test("an updated unpacked extension reloads itself when a chat site is opened", 
     sw ??= await ctx.waitForEvent("serviceworker");
     const before = await sw.evaluate(() => chrome.runtime.getManifest().version);
 
+    // Close the setup page AppLock opens on install (every AppLock page runs the check too).
+    const extId = new URL(sw.url()).host;
+    await expect.poll(() => ctx.pages().some((p) => p.url().includes(`${extId}/options.html`)), { timeout: 10_000 }).toBe(true);
+    await Promise.all(ctx.pages().filter((p) => p.url().includes(extId)).map((p) => p.close()));
+
     // Simulate an update on disk.
     const mf = join(dir, "manifest.json");
     const m = JSON.parse(readFileSync(mf, "utf8"));
@@ -30,7 +35,11 @@ test("an updated unpacked extension reloads itself when a chat site is opened", 
     // reload is triggered; a normal Chrome restarts it with the new version.)
     const stopped = new Promise<void>((resolve) => sw.once("close", () => resolve()));
     const page = await ctx.newPage();
-    for (let i = 0; i < 4 && !(await page.locator("#sidebar").count()); i++) await page.goto("https://chatgpt.com/").catch(() => {});
+    // The reload may close things mid-navigation; that's the point.
+    for (let i = 0; i < 4; i++) {
+      const ok = await page.goto("https://chatgpt.com/").then(() => page.locator("#sidebar").count()).catch(() => 1);
+      if (ok) break;
+    }
     await expect(Promise.race([stopped.then(() => "reloaded"), new Promise((r) => setTimeout(() => r("still running"), 15_000))])).resolves.toBe("reloaded");
     expect(before).not.toBe("99.0.0");
   } finally {

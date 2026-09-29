@@ -1,17 +1,8 @@
+import "./selfupdate.js";
 import { getAuth, startUnlockedSession, verifyPassword, verifyTouchId } from "./auth.js";
 
-// ?update=1: loaded invisibly by the content script. If the files on disk are newer
-// than the version Chrome is running (an unpacked install that was updated in
-// place), reload the extension so its background code catches up too.
-if (new URLSearchParams(location.search).has("update")) {
-  const running = chrome.runtime.getManifest().version;
-  const onDisk = await fetch(chrome.runtime.getURL("manifest.json"), { cache: "no-store" })
-    .then((r) => r.json())
-    .then((m) => m.version)
-    .catch(() => running);
-  if (onDisk !== running) chrome.runtime.reload();
-  throw new Error("update check done"); // stop here; this frame has no UI
-}
+// ?update=1: loaded invisibly by the content script just for selfupdate.js.
+if (new URLSearchParams(location.search).has("update")) throw new Error("update check only");
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);

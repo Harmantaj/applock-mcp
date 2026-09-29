@@ -1,3 +1,4 @@
+import "./selfupdate.js";
 import "./sites.js";
 import "./store.js";
 import { getAuth, relockNow, startUnlockedSession, verifyPassword, verifyTouchId } from "./auth.js";
