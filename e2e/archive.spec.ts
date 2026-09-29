@@ -145,3 +145,32 @@ test("phone lock button: shown on touch screens, locks the open chat in one tap"
   await sw.evaluate(() => chrome.storage.local.get("settings").then(({ settings = {} }) => chrome.storage.local.set({ settings: { ...settings, lockButton: "never" } })));
   await page.close();
 });
+
+test("Move to vault never deletes anything if the vault on the computer can't save it", async () => {
+  // No AppLock server runs in this browser's test, so the vault is unreachable.
+  const [chat] = CHATGPT_CHATS;
+  await ctx.route("https://chatgpt.com/backend-api/conversation/*", async (r) => {
+    if (r.request().method() === "GET")
+      return r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ title: "x", current_node: "a", mapping: { a: { parent: null, message: { author: { role: "user" }, content: { parts: ["hi"] } } } } }) });
+    patches.push({ id: r.request().url().split("/").pop()!, body: r.request().postDataJSON(), auth: r.request().headers()["authorization"] });
+    await r.fulfill({ status: 200, body: "{}" });
+  });
+  const before = patches.length;
+  const p = await ctx.newPage();
+  await p.goto(`chrome-extension://${extId}/popup.html`);
+  await p.evaluate(({ id, title }) => chrome.runtime.sendMessage({ type: "lock", site: "chatgpt", id, title }), chat);
+  await p.reload();
+  await p.getByLabel("Password").fill("pw1234");
+  await p.getByRole("button", { name: "Unlock", exact: true }).click();
+  await expect(p.locator("#state")).toContainText("Unlocked");
+  const page = await ctx.newPage();
+  await open(page, "https://chatgpt.com/");
+  const r = await p.evaluate((id) => chrome.runtime.sendMessage({ type: "moveToVault", site: "chatgpt", id }), chat.id);
+  expect(r.ok).toBe(false);
+  expect(r.error).toContain("Nothing was deleted");
+  await page.waitForTimeout(1000);
+  expect(patches.slice(before).filter((x) => x.body?.is_visible === false)).toEqual([]);
+  expect(await lockRecord(chat.id)).toBeTruthy();
+  await page.close();
+  await p.close();
+});

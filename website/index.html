@@ -120,7 +120,7 @@
     <ol class="steps">
       <li>
         <h3>Install the MCP server</h3>
-        <pre><code>npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.5.4/applock-mcp-0.5.4.tgz</code></pre>
+        <pre><code>npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.6.0/applock-mcp-0.6.0.tgz</code></pre>
         <p>This adds the <code>applock-mcp</code> command.</p>
       </li>
       <li>
@@ -153,7 +153,7 @@
             <p>Or get it from the Mac App Store. Open it from the menu bar and log in.</p>
             <p><strong>2. Run one command.</strong></p>
             <pre><code>applock-mcp install phone</code></pre>
-            <p>It starts AppLock in the background, turns on Tailscale Funnel for AppLock only (never for a port another app is using), checks it from the internet, and copies your connector URL to the clipboard. The first time, Tailscale opens a page asking you to allow Funnel; click Enable.</p>
+            <p>It starts AppLock in the background, turns on Tailscale Funnel for AppLock only (never for a port another app is using), checks it from the internet, copies your connector URL to the clipboard, and prints the address of your phone vault (open it in Safari, then Share › Add to Home Screen). The first time, Tailscale opens a page asking you to allow Funnel; click Enable.</p>
             <p><strong>3. Add it to Claude once.</strong> On <a href="https://claude.ai/new#customize/connectors">claude.ai › Customize › Connectors</a>, choose <strong>Add</strong> › <strong>Add custom connector</strong>, name it AppLock and paste the URL. It appears in the Claude desktop and phone apps automatically; turn it on from the tools menu in a chat.</p>
             <p>To unlock from your phone, ask Claude to unlock AppLock. It replies with a one-time link to your Mac’s unlock page (valid 5 minutes). Your passphrase goes from your phone’s browser straight to your Mac and never through Claude.</p>
             <p><code>applock-mcp remote url</code> copies the URL again, <code>applock-mcp remote rotate</code> replaces it if it leaks, and <code>applock-mcp uninstall phone</code> turns everything off.</p>
@@ -223,7 +223,11 @@
         <p>iPhone (iOS 18 or later): touch and hold the ChatGPT, Claude or Gemini icon › <strong>Require Face ID</strong>. Android 15 or later: move the app into <strong>Private space</strong>. Nobody can open it without you, though it locks every chat, not just one.</p>
       </div>
       <div>
-        <h3>4. Control your Mac from Claude on your phone</h3>
+        <h3>4. Move a chat into your vault</h3>
+        <p>For chats that must not exist anywhere else, use <strong>Vault</strong> next to a locked ChatGPT or Claude chat in AppLock. It saves an encrypted copy on your computer, then deletes the chat from ChatGPT or Claude, so it’s gone from every app, phone and device. Read it in the <strong>AppLock Vault</strong> on your phone: a Home Screen web app, unlocked with your passphrase (iCloud Keychain fills it after Face ID). AppLock only deletes after the vault confirms the copy is saved.</p>
+      </div>
+      <div>
+        <h3>5. Control your Mac from Claude on your phone</h3>
         <p>With the <a href="#install">phone connector</a>, ask Claude on your phone to lock everything on your Mac, hide a Claude Code session, or lock a ChatGPT chat in your Mac’s Chrome.</p>
       </div>
     </div>

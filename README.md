@@ -14,7 +14,7 @@ ChatGPT, Claude.ai and Gemini keep chats on their servers. An MCP server only gi
 ## Install
 
 ```bash
-npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.5.4/applock-mcp-0.5.4.tgz
+npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.6.0/applock-mcp-0.6.0.tgz
 applock-mcp setup                 # passphrase + optional Touch ID
 applock-mcp install claude        # or: antigravity | chatgpt
 ```
@@ -28,7 +28,8 @@ No app or extension can change the ChatGPT/Claude/Gemini phone apps, so AppLock 
 1. **Hide on your phone too** (setting, ChatGPT only): locking also archives the chat through ChatGPT's own API, so it leaves the chat list in the iPhone/Android/Mac apps; removing the lock unarchives it. Jobs sync, so a lock made anywhere is archived by whichever computer next has ChatGPT open.
 2. **Per-chat lock in a phone browser**: Firefox for Android, or Orion (Kagi) on iPhone/iPad, with the Firefox build installed. A lock button appears on chat pages on touch screens.
 3. **Face ID for the whole app**: iOS 18 *Require Face ID*; Android 15 *Private space*.
-4. **Phone connector** (below) to control your Mac from Claude on the phone.
+4. **Move to vault** (ChatGPT, Claude): saves an encrypted transcript in the vault on your computer, then deletes the chat at the provider, so it's gone from every app and device. Read it on your phone in the **AppLock Vault** web app (`/vault/<secret>/` on your tunnel address; add it to the Home Screen). Deletion only happens after the vault confirms the copy is stored.
+5. **Phone connector** (below) to control your Mac from Claude on the phone.
 
 ### Claude everywhere (web, desktop, iPhone, Android) and ChatGPT on the web
 

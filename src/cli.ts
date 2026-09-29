@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { resetBridge, startBridge } from "./bridge.js";
 import { applockHome, BRIDGE_PORT } from "./paths.js";
 import { handleUnlockLink } from "./unlock.js";
+import { handleVaultWeb, vaultSecret } from "./vaultweb.js";
 import {
   APP_ID,
   chooseLocalPort,
@@ -46,7 +47,7 @@ import {
 } from "./vault.js";
 
 // Until it's on npm, the package installs straight from GitHub.
-const PACKAGE_SPEC = process.env.APPLOCK_PACKAGE ?? "https://github.com/Harmantaj/applock-mcp/releases/download/v0.5.4/applock-mcp-0.5.4.tgz";
+const PACKAGE_SPEC = process.env.APPLOCK_PACKAGE ?? "https://github.com/Harmantaj/applock-mcp/releases/download/v0.6.0/applock-mcp-0.6.0.tgz";
 const argv = process.argv.slice(2);
 const INFO_FLAGS = ["--version", "-v", "--help", "-h"];
 const cmd = argv[0] && (!argv[0].startsWith("-") || INFO_FLAGS.includes(argv[0])) ? argv[0] : "serve";
@@ -173,6 +174,7 @@ async function serveHttp() {
   const http = createHttpServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://x");
     if (url.pathname === "/health") return void res.writeHead(200, { "content-type": "text/plain" }).end(`${APP_ID} ok ${VERSION}`);
+    if (url.pathname.startsWith("/vault/") && (await handleVaultWeb(loadConfig(), req, res))) return;
     if (url.pathname.startsWith("/unlock/")) {
       const cfg = loadConfig();
       if (cfg && (await handleUnlockLink(cfg, url.pathname.slice(8), req, res))) return;
@@ -202,7 +204,11 @@ async function serveHttp() {
   });
   http.listen(port, host, () => {
     console.error(`AppLock MCP (Streamable HTTP) listening on http://${host}:${port}/mcp/${secret}`);
-    if (publicUrl) console.error(`Connector URL: ${publicUrl}/mcp/${secret}`);
+    const vault = vaultSecret();
+    if (publicUrl) {
+      console.error(`Connector URL: ${publicUrl}/mcp/${secret}`);
+      console.error(`Phone vault:   ${publicUrl}/vault/${vault}/`);
+    }
     else {
       console.error(`Expose it with a tunnel, e.g.  tailscale funnel --bg ${port}`);
       console.error(`then restart with --public-url https://<your-tunnel-host> so phone unlock links work.`);
@@ -281,6 +287,12 @@ function connectorUrl(publicUrl: string) {
 
 function showConnector(url: string) {
   const copied = copyToClipboard(url);
+  const vault = `${new URL(url).origin}/vault/${vaultSecret()}/`;
+  console.error(`
+AppLock Vault for your phone (open it in Safari, then Share › Add to Home Screen):
+
+  ${vault}
+`);
   console.error(`
 Your AppLock connector URL${copied ? " (copied to the clipboard)" : ""}:
 

@@ -116,6 +116,45 @@ export function recordBrowserLock(cfg, chat) {
     writeAtomic(metaFile(meta.vaultId), seal(Buffer.from(JSON.stringify(meta)), cfg.publicKey));
     return meta;
 }
+/** Seals a web chat's transcript into the vault. Needs only the public key. */
+export function storeWebChat(cfg, chat) {
+    if (!Array.isArray(chat.messages) || chat.messages.length === 0)
+        throw new Error("The chat has no messages to save");
+    const vaultId = randomUUID();
+    const payload = {
+        web: {
+            site: String(chat.site),
+            id: String(chat.id),
+            title: String(chat.title || chat.id).slice(0, 300),
+            url: chat.url,
+            messages: chat.messages.map((m) => ({ role: m.role, text: String(m.text ?? ""), at: m.at })),
+        },
+    };
+    const sealedData = seal(gzipSync(Buffer.from(JSON.stringify(payload))), cfg.publicKey);
+    const meta = {
+        vaultId,
+        source: "browser",
+        id: payload.web.id,
+        title: payload.web.title,
+        site: payload.web.site,
+        url: chat.url,
+        paths: [],
+        sizeBytes: sealedData.length,
+        hiddenAt: new Date().toISOString(),
+        vaulted: true,
+    };
+    writeAtomic(dataFile(vaultId), sealedData);
+    writeAtomic(metaFile(vaultId), seal(Buffer.from(JSON.stringify(meta)), cfg.publicKey));
+    if (readFileSync(dataFile(vaultId)).length !== sealedData.length)
+        throw new Error("Vault write verification failed");
+    return meta;
+}
+/** The saved messages of a vaulted web chat. */
+export function readWebChat(privateKey, meta) {
+    if (!meta.vaulted)
+        throw new Error("This item has no saved transcript");
+    return JSON.parse(gunzipSync(open(readFileSync(dataFile(meta.vaultId)), privateKey)).toString("utf8")).web;
+}
 export function hiddenCount() {
     if (!existsSync(vaultDir()))
         return 0;
@@ -141,6 +180,8 @@ function loadPayload(privateKey, vaultId) {
     return JSON.parse(gunzipSync(open(readFileSync(dataFile(vaultId)), privateKey)).toString("utf8"));
 }
 export function restoreHidden(privateKey, meta) {
+    if (meta.vaulted)
+        throw new Error("This chat was moved out of the provider into the vault; it can be read but not put back.");
     if (meta.source !== "browser") {
         const payload = loadPayload(privateKey, meta.vaultId);
         // A client may have appended a few lines after the session was hidden; those
@@ -171,6 +212,11 @@ export function restoreHidden(privateKey, meta) {
 }
 /** Plain-text transcript of a hidden local session, for reading while unlocked. */
 export function readHidden(privateKey, meta, maxChars = 20000) {
+    if (meta.vaulted) {
+        const web = readWebChat(privateKey, meta);
+        const text = web.messages.map((m) => `${m.role === "user" ? "User" : m.role === "assistant" ? "Assistant" : m.role}: ${m.text}`).join("\n\n");
+        return text.length > maxChars ? text.slice(0, maxChars) + `\n\n… truncated (${text.length} chars total)` : text;
+    }
     if (meta.source === "browser")
         return `Browser chat on ${meta.site}: ${meta.url ?? meta.id}`;
     const payload = loadPayload(privateKey, meta.vaultId);

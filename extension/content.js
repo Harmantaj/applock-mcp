@@ -194,6 +194,81 @@
     document.documentElement.appendChild(fab);
   }
 
+  // Firefox runs content-script fetch with the extension's origin; content.fetch
+  // makes the request as the page itself, like Chrome does by default.
+  const pageFetch = typeof content !== "undefined" && content?.fetch ? content.fetch.bind(content) : fetch;
+
+  async function chatgptToken() {
+    const session = await pageFetch("/api/auth/session", { credentials: "include" }).then((r) => (r.ok ? r.json() : null));
+    if (!session?.accessToken) throw new Error("Sign in to ChatGPT in this browser first.");
+    return session.accessToken;
+  }
+
+  async function claudeOrg() {
+    const orgs = await pageFetch("/api/organizations", { credentials: "include" }).then((r) => (r.ok ? r.json() : null));
+    const org = Array.isArray(orgs) ? orgs.find((o) => (o.capabilities || []).includes("chat")) || orgs[0] : null;
+    if (!org?.uuid) throw new Error("Sign in to Claude in this browser first.");
+    return org.uuid;
+  }
+
+  /** Full transcript of a chat, straight from the provider's API. */
+  async function exportChat(id) {
+    if (site.key === "chatgpt") {
+      const token = await chatgptToken();
+      const r = await pageFetch(`/backend-api/conversation/${encodeURIComponent(id)}`, { credentials: "include", headers: { authorization: `Bearer ${token}` } });
+      if (!r.ok) throw new Error(`ChatGPT returned ${r.status} for that chat.`);
+      const c = await r.json();
+      const messages = [];
+      // Follow the branch that is on screen, from the newest message back to the root.
+      for (let node = c.mapping?.[c.current_node]; node; node = c.mapping[node.parent]) {
+        const m = node.message;
+        const role = m?.author?.role;
+        const text = (m?.content?.parts || []).filter((p) => typeof p === "string").join("\n").trim();
+        if ((role === "user" || role === "assistant") && text) messages.push({ role, text, at: m.create_time ? new Date(m.create_time * 1000).toISOString() : undefined });
+      }
+      return { title: c.title || "Untitled", messages: messages.reverse() };
+    }
+    if (site.key === "claude") {
+      const org = await claudeOrg();
+      const r = await pageFetch(`/api/organizations/${org}/chat_conversations/${encodeURIComponent(id)}?tree=True&rendering_mode=messages`, { credentials: "include" });
+      if (!r.ok) throw new Error(`Claude returned ${r.status} for that chat.`);
+      const c = await r.json();
+      const messages = (c.chat_messages || [])
+        .slice()
+        .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+        .map((m) => ({
+          role: m.sender === "human" ? "user" : "assistant",
+          text: (Array.isArray(m.content) ? m.content.filter((p) => p.type === "text").map((p) => p.text).join("\n") : "") || m.text || "",
+          at: m.created_at,
+        }))
+        .filter((m) => m.text.trim());
+      return { title: c.name || "Untitled", messages };
+    }
+    throw new Error(`Moving ${site.name} chats to the vault isn't supported.`);
+  }
+
+  /** Deletes the chat at the provider (the same call the site's own Delete uses). */
+  async function deleteChat(id) {
+    if (site.key === "chatgpt") {
+      const token = await chatgptToken();
+      const r = await pageFetch(`/backend-api/conversation/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify({ is_visible: false }),
+      });
+      if (!r.ok) throw new Error(`ChatGPT refused the delete (${r.status}).`);
+      return;
+    }
+    if (site.key === "claude") {
+      const org = await claudeOrg();
+      const r = await pageFetch(`/api/organizations/${org}/chat_conversations/${encodeURIComponent(id)}`, { method: "DELETE", credentials: "include" });
+      if (!r.ok && r.status !== 404) throw new Error(`Claude refused the delete (${r.status}).`);
+      return;
+    }
+    throw new Error("Not supported");
+  }
+
   // ---- server-side archive (ChatGPT) ----------------------------------------------
   // Uses the same endpoints as ChatGPT's own Archive / Unarchive menu items, with
   // the signed-in session of this tab. Jobs come from any of the user's computers.
@@ -215,9 +290,6 @@
       await new Promise((r) => setTimeout(r, 50 + Math.random() * 100));
       if ((await chrome.storage.local.get("opsLease")).opsLease?.owner !== me) return;
       leased = true;
-      // Firefox runs content-script fetch with the extension's origin; content.fetch
-      // makes the request as the page itself, like Chrome does by default.
-      const pageFetch = typeof content !== "undefined" && content?.fetch ? content.fetch.bind(content) : fetch;
       const session = await pageFetch("/api/auth/session", { credentials: "include" }).then((r) => (r.ok ? r.json() : null));
       const token = session?.accessToken;
       if (!token) return; // signed out: try again later
@@ -249,6 +321,14 @@
   }
 
   chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
+    if (msg.type === "exportChat" || msg.type === "deleteChat") {
+      (msg.type === "exportChat" ? exportChat(msg.id) : deleteChat(msg.id)).then(
+        (value) => reply({ ok: true, value }),
+        (e) => reply({ ok: false, error: e.message }),
+      );
+      return true;
+    }
+    if (msg.type === "ping") reply({ site: site.key });
     if (msg.type === "getCurrentChat") reply(currentChat());
     if (msg.type === "titleFor") {
       const a = [...document.querySelectorAll(site.linkSelector)].find((x) => parseChatUrl(x.href)?.id === msg.id);

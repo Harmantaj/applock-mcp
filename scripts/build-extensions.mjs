@@ -10,6 +10,11 @@ const out = join(root, "dist-ext");
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 
+// Fail fast on syntax errors in any extension script.
+for (const f of ["background.js", "content.js", "sites.js", "store.js", "auth.js", "popup.js", "options.js", "unlock.js", "selfupdate.js"]) {
+  execFileSync(process.execPath, ["--check", join(root, "extension", f)], { stdio: "inherit" });
+}
+
 function build(name, transform) {
   const dir = join(out, name);
   cpSync(join(root, "extension"), dir, { recursive: true, filter: (p) => !p.split("/").pop().startsWith(".") });

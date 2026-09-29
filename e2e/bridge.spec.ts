@@ -19,6 +19,7 @@ let sw: Worker;
 let client: Client;
 let root: string;
 const archived: { id: string; body: any }[] = [];
+const claudeDeletes: string[] = [];
 
 const call = async (name: string, args: Record<string, unknown> = {}) => {
   const r: any = await client.callTool({ name, arguments: args });
@@ -55,8 +56,33 @@ test.beforeAll(async () => {
     r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ accessToken: "t" }) }),
   );
   await ctx.route("https://chatgpt.com/backend-api/conversation/*", async (r) => {
-    archived.push({ id: r.request().url().split("/").pop()!, body: r.request().postDataJSON() });
+    const id = r.request().url().split("/").pop()!;
+    if (r.request().method() === "GET") {
+      // Two branches; only the one ending at current_node should be exported.
+      const mapping = {
+        root: { id: "root", parent: null, message: null },
+        u1: { id: "u1", parent: "root", message: { author: { role: "user" }, content: { parts: ["Is this rash serious?"] }, create_time: 1 } },
+        a1: { id: "a1", parent: "u1", message: { author: { role: "assistant" }, content: { parts: ["See a doctor if it spreads."] }, create_time: 2 } },
+        old: { id: "old", parent: "u1", message: { author: { role: "assistant" }, content: { parts: ["(an older regenerated answer)"] } } },
+      };
+      return r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ title: "Medical questions", current_node: "a1", mapping }) });
+    }
+    archived.push({ id, body: r.request().postDataJSON() });
     await r.fulfill({ status: 200, contentType: "application/json", body: '{"success":true}' });
+  });
+  await ctx.route("https://claude.ai/api/**", async (r) => {
+    const u = new URL(r.request().url());
+    if (u.pathname === "/api/organizations") return r.fulfill({ status: 200, contentType: "application/json", body: '[{"uuid":"org-1","capabilities":["chat"]}]' });
+    const id = u.pathname.split("/").pop()!;
+    if (r.request().method() === "DELETE") {
+      claudeDeletes.push(id);
+      return r.fulfill({ status: 204, body: "" });
+    }
+    return r.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ name: "Divorce paperwork questions", chat_messages: [{ index: 1, sender: "assistant", content: [{ type: "text", text: "You'll need form FL-100." }] }, { index: 0, sender: "human", content: [{ type: "text", text: "Which forms do I file?" }] }] }),
+    });
   });
   [sw] = ctx.serviceWorkers();
   sw ??= await ctx.waitForEvent("serviceworker");
@@ -153,4 +179,52 @@ test("hide_on_phone: the AI turns on phone hiding and already-locked ChatGPT cha
     .toContain("Hide on phone (ChatGPT archive): on · 2/2 locked ChatGPT chats archived");
   expect(await sw.evaluate(async () => (await chrome.storage.sync.get("prefs")).prefs)).toEqual({ archiveOnLock: true });
   await page.close();
+});
+
+test("Move to vault: transcript saved encrypted, readable through MCP, then deleted at ChatGPT and Claude", async () => {
+  const extId = new URL(sw.url()).host;
+  const [gpt] = CHATGPT_CHATS;
+  const claudeChat = { id: "0b6b2c6e-aaaa-4bbb-8ccc-000000000001", title: "Divorce paperwork questions" };
+  const popup = await ctx.newPage();
+  await popup.goto(`chrome-extension://${extId}/popup.html`);
+  await popup.evaluate((c) => chrome.runtime.sendMessage({ type: "lock", site: "claude", id: c.id, title: c.title }), claudeChat);
+  await popup.reload();
+  // Moving needs the unlocked session (the user is present).
+  const denied = await popup.evaluate((id) => chrome.runtime.sendMessage({ type: "moveToVault", site: "chatgpt", id }), gpt.id);
+  expect(denied).toEqual({ ok: false, error: "Unlock AppLock first." });
+  await popup.getByLabel("Password").fill("pw1234");
+  await popup.getByRole("button", { name: "Unlock", exact: true }).click();
+
+  popup.on("dialog", (d) => d.accept());
+  await popup.getByRole("button", { name: `Move ${gpt.title} to the vault` }).click();
+  await expect(popup.locator("#vaultMsg")).toHaveText("Moved “Medical questions” to the vault (2 messages).", { timeout: 20_000 });
+  expect(archived.at(-1)).toEqual({ id: gpt.id, body: { is_visible: false } });
+  // (A tab the extension opens in the background never gets Playwright's mocks, so
+  // open Claude first, as a user with Claude open would have.)
+  const claudeTab = await ctx.newPage();
+  await open(claudeTab, "https://claude.ai/recents");
+  const r2 = await popup.evaluate((c) => chrome.runtime.sendMessage({ type: "moveToVault", site: "claude", id: c.id }), claudeChat);
+  await claudeTab.close();
+  expect(r2.ok, r2.error).toBe(true);
+  expect(claudeDeletes).toEqual([claudeChat.id]);
+  const remaining = await sw.evaluate(async () => Object.keys(await chrome.storage.sync.get(null)).filter((k) => k.startsWith("lk:")));
+  expect(remaining).not.toContain(`lk:chatgpt:${gpt.id}`);
+  expect(remaining).not.toContain(`lk:claude:${claudeChat.id}`);
+
+  // The vault on the computer has both, readable after unlocking.
+  await call("lock_vault");
+  const { existsSync, readFileSync, rmSync } = await import("node:fs");
+  rmSync(join(root, "unlock-url"), { force: true });
+  const pending = call("unlock_vault", { method: "passphrase" });
+  await expect.poll(() => existsSync(join(root, "unlock-url")), { timeout: 5000 }).toBe(true);
+  await fetch(readFileSync(join(root, "unlock-url"), "utf8"), { method: "POST", body: "passphrase=bridge-pass", headers: { "content-type": "application/x-www-form-urlencoded" } });
+  await pending;
+  const listed = await call("list_hidden");
+  expect(listed.text).toContain("Medical questions");
+  expect(listed.text).toContain("Divorce paperwork questions");
+  const text = (await call("read_hidden", { id: gpt.id })).text;
+  expect(text).toBe("User: Is this rash serious?\n\nAssistant: See a doctor if it spreads.");
+  expect((await call("read_hidden", { id: claudeChat.id })).text).toBe("User: Which forms do I file?\n\nAssistant: You'll need form FL-100.");
+  expect((await call("restore_hidden", { id: gpt.id })).isError).toBe(true);
+  await popup.close();
 });
