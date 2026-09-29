@@ -153,6 +153,22 @@
     chrome.runtime.sendMessage({ type: "report", site: site.key, ...payload }).catch(() => {});
   }
 
+  // ---- self-update for unpacked installs ----------------------------------------------
+  // Chrome only picks up new background code for an unpacked extension when it is
+  // reloaded. An invisible extension frame compares versions and reloads if needed.
+  async function checkForUpdate() {
+    const { updateCheckedAt = 0 } = await chrome.storage.local.get("updateCheckedAt");
+    if (Date.now() - updateCheckedAt < 10 * 60_000) return;
+    await chrome.storage.local.set({ updateCheckedAt: Date.now() });
+    const f = document.createElement("iframe");
+    f.src = chrome.runtime.getURL("unlock.html?update=1");
+    f.style.cssText = "display:none!important";
+    f.setAttribute("aria-hidden", "true");
+    document.documentElement.appendChild(f);
+    setTimeout(() => f.remove(), 5000);
+  }
+  setTimeout(() => checkForUpdate().catch(() => {}), 2500);
+
   // ---- lock button for phones (no shortcuts or right-click there) ---------------------
   let fab;
   async function updateFab() {
