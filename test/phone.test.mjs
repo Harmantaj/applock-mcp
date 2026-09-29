@@ -44,3 +44,10 @@ test("reads Tailscale sign-in state and host name", () => {
   writeFileSync(bin, `#!/bin/sh\necho '{"BackendState":"NeedsLogin","Self":{}}'\n`);
   assert.deepEqual(phone.tailscaleStatus(bin), { running: false, host: undefined });
 });
+
+test("the published package contains everything the server loads at runtime", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const out = JSON.parse(execFileSync("npm", ["pack", "--dry-run", "--json"], { cwd: (await import("node:url")).fileURLToPath(new URL("..", import.meta.url)) }).toString());
+  const files = out[0].files.map((f) => f.path);
+  for (const needed of ["dist/cli.js", "dist/vaultweb.js", "native/touchid.swift", "assets/icon-180.png"]) assert.ok(files.includes(needed), `missing ${needed}`);
+});
