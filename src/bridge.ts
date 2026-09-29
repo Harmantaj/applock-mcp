@@ -4,6 +4,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { BRIDGE_PORT, bridgeQueuePath, bridgeStatePath } from "./paths.js";
 import { VERSION } from "./version.js";
+import { loadConfig, storeWebChat } from "./vault.js";
 
 // The browser extension cannot see the file system, so the MCP server exposes a
 // tiny localhost API on a fixed port. Several MCP processes may run at once
@@ -94,11 +95,11 @@ function send(res: ServerResponse, status: number, body: unknown, origin?: strin
   res.end(JSON.stringify(body));
 }
 
-async function body(req: IncomingMessage): Promise<any> {
+async function body(req: IncomingMessage, limit = 1_000_000): Promise<any> {
   let raw = "";
   for await (const chunk of req) {
     raw += chunk;
-    if (raw.length > 1_000_000) throw new Error("Body too large");
+    if (raw.length > limit) throw new Error("Body too large");
   }
   return raw ? JSON.parse(raw) : {};
 }
@@ -156,6 +157,16 @@ export async function handleBridge(req: IncomingMessage, res: ServerResponse) {
     const commands = readJson<BridgeCommand[]>(bridgeQueuePath(), []);
     if (commands.length) writeJson(bridgeQueuePath(), []);
     return send(res, 200, { commands }, origin);
+  }
+  if (req.method === "POST" && path === "/bridge/vault") {
+    // The extension hands over a chat transcript before deleting it at the provider.
+    // Sealed with the public key, so this works while the vault is locked.
+    const cfg = loadConfig();
+    if (!cfg) return send(res, 409, { error: "AppLock on this computer isn't set up (run applock-mcp setup)" }, origin);
+    const b = await body(req, 25_000_000);
+    const meta = storeWebChat(cfg, b);
+    writeState({ ...readState(), extensionOrigin: origin, lastSeen: now });
+    return send(res, 200, { vaultId: meta.vaultId, messages: b.messages.length }, origin);
   }
   if (req.method === "GET" && path === "/bridge/ping") return send(res, 200, { ok: true, app: "applock-mcp" }, origin);
   send(res, 404, { error: "Not found" }, origin);

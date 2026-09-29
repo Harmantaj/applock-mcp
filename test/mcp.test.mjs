@@ -196,3 +196,55 @@ test("remote (phone) unlock: one-time link on the public URL, passphrase never i
     proc.kill();
   }
 });
+
+test("phone vault web app: secret path, passphrase login, lockout, reading a vaulted chat", async () => {
+  // Put a web chat in the vault the way the extension does (bridge, locked vault).
+  const bport = env.APPLOCK_BRIDGE_PORT;
+  const ext = "chrome-extension://abcdefghijklmnop";
+  const saved = await fetch(`http://127.0.0.1:${bport}/bridge/vault`, {
+    method: "POST",
+    headers: { origin: ext, "content-type": "application/json" },
+    body: JSON.stringify({ site: "chatgpt", id: "c-vault-1", title: "Medical questions", messages: [{ role: "user", text: "Is this rash serious?" }, { role: "assistant", text: "See a doctor if it spreads." }] }),
+  }).then((r) => r.json());
+  assert.match(saved.vaultId, /^[0-9a-f-]{36}$/);
+  // Only the paired extension may do that.
+  assert.equal((await fetch(`http://127.0.0.1:${bport}/bridge/vault`, { method: "POST", headers: { origin: "https://evil.example" }, body: "{}" })).status, 403);
+
+  const port = String(30000 + Math.floor(Math.random() * 9000));
+  const proc = spawn(process.execPath, [CLI, "serve", "--http", "--port", port], { env: { ...env, APPLOCK_BRIDGE_PORT: "1" } });
+  try {
+    for (let i = 0; i < 50; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      if ((await fetch(`http://127.0.0.1:${port}/health`).catch(() => null))?.ok) break;
+    }
+    const secret = readFileSync(join(fx.home, "vault-secret"), "utf8").trim();
+    const base = `http://127.0.0.1:${port}/vault/${secret}`;
+    assert.equal((await fetch(`http://127.0.0.1:${port}/vault/wrong/`)).status, 404, "secret path required");
+    const page = await fetch(base + "/");
+    assert.equal(page.status, 200);
+    assert.match(await page.text(), /autocomplete="current-password"/);
+    assert.equal((await fetch(base + "/api/items")).status, 401, "locked by default");
+    const login = (p) => fetch(base + "/api/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ passphrase: p }) });
+    assert.equal((await login("nope")).status, 401);
+    const ok = await login("hunter22");
+    assert.equal(ok.status, 200);
+    const cookie = ok.headers.get("set-cookie");
+    assert.match(cookie, /al_vault=[A-Za-z0-9_-]+; Path=\/vault\/.+; HttpOnly; Secure; SameSite=Strict/);
+    const headers = { cookie: cookie.split(";")[0] };
+    assert.equal((await fetch(base + "/api/items")).status, 401, "no cookie, no access");
+    const items = (await fetch(base + "/api/items", { headers }).then((r) => r.json())).items;
+    const item = items.find((i) => i.title === "Medical questions");
+    assert.equal(item.vaulted, true);
+    const chat = await fetch(`${base}/api/items/${item.id}`, { headers }).then((r) => r.json());
+    assert.deepEqual(chat.messages.map((m) => m.role), ["user", "assistant"]);
+    assert.equal(chat.messages[0].text, "Is this rash serious?");
+    // Locking ends the session.
+    await fetch(base + "/api/logout", { method: "POST", headers });
+    assert.equal((await fetch(base + "/api/items", { headers })).status, 401);
+    // Five wrong passphrases lock the page for a while.
+    for (let i = 0; i < 5; i++) await login("wrong");
+    assert.equal((await login("hunter22")).status, 429);
+  } finally {
+    proc.kill();
+  }
+});

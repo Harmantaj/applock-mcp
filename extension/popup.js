@@ -65,7 +65,29 @@ async function render() {
       await chrome.runtime.sendMessage({ type: "unlockChat", site: item.site, id: item.id });
       render();
     };
-    li.append(t, badge, open, rm);
+    const parts = [t, badge, open, rm];
+    if (item.site === "chatgpt" || item.site === "claude") {
+      const vault = document.createElement("button");
+      vault.className = "link";
+      vault.textContent = "Vault";
+      vault.setAttribute("aria-label", `Move ${title} to the vault`);
+      vault.onclick = async () => {
+        const name = item.site === "chatgpt" ? "ChatGPT" : "Claude";
+        const ok = confirm(
+          `Move “${title}” to your AppLock vault?\n\nAppLock saves an encrypted copy on your computer, then deletes the chat from ${name}. It disappears from every device and app, including your phone. You can still read it in the AppLock Vault. It can't be put back into ${name}.`,
+        );
+        if (!ok) return;
+        vault.disabled = true;
+        vault.textContent = "Moving…";
+        const r = await chrome.runtime.sendMessage({ type: "moveToVault", site: item.site, id: item.id });
+        $("err").textContent = "";
+        if (r?.ok) $("vaultMsg").textContent = `Moved “${r.value.title}” to the vault (${r.value.messages} messages).`;
+        else $("vaultMsg").textContent = r?.error ?? "Couldn't move it.";
+        render();
+      };
+      parts.splice(3, 0, vault);
+    }
+    li.append(...parts);
     list.append(li);
   }
 }

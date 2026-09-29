@@ -47,6 +47,61 @@ async function unlockChat({ site, id }) {
   else if (lock?.archived) await store.queueServerOp(site, id, false);
 }
 
+// ---- move to vault --------------------------------------------------------------------
+
+async function tabFor(site) {
+  const patterns = site.hosts.map((h) => `https://${h}/*`);
+  let [tab] = await chrome.tabs.query({ url: patterns });
+  if (!tab) tab = await chrome.tabs.create({ url: `https://${site.hosts[0]}/`, active: false });
+  for (let i = 0; i < 40; i++) {
+    try {
+      if ((await chrome.tabs.sendMessage(tab.id, { type: "ping" }))?.site === site.key) return tab;
+    } catch {}
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error(`Couldn't reach ${site.name} in the browser. Open it and try again.`);
+}
+
+async function inTab(tab, msg) {
+  const r = await chrome.tabs.sendMessage(tab.id, msg);
+  if (!r?.ok) throw new Error(r?.error || "No answer from the page.");
+  return r.value;
+}
+
+/**
+ * Saves the whole chat, encrypted, in the AppLock vault on this computer, then
+ * deletes it at the provider so it is gone from every device and app. The chat is
+ * only deleted after the vault confirms the copy is stored.
+ */
+async function moveToVault({ site: siteKey, id }) {
+  const { unlockedUntil = 0 } = await chrome.storage.local.get("unlockedUntil");
+  if (Date.now() >= unlockedUntil) throw new Error("Unlock AppLock first.");
+  const site = SITES.find((s) => s.key === siteKey);
+  if (!site || !["chatgpt", "claude"].includes(site.key)) throw new Error(`Moving ${site?.name ?? siteKey} chats to the vault isn't supported.`);
+  const tab = await tabFor(site);
+  const chat = await inTab(tab, { type: "exportChat", id });
+  if (!chat.messages.length) throw new Error("That chat has no messages to save.");
+  let saved;
+  try {
+    const res = await fetch(BRIDGE.replace("/bridge/sync", "/bridge/vault"), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ site: site.key, id, title: chat.title, url: site.chatUrl(id), messages: chat.messages }),
+    });
+    saved = await res.json();
+    if (!res.ok) throw new Error(saved?.error || `status ${res.status}`);
+  } catch (e) {
+    throw new Error(`The AppLock vault on this computer didn't save it (${e.message}). Nothing was deleted. Is the AppLock MCP server running?`);
+  }
+  await inTab(tab, { type: "deleteChat", id });
+  await store.removeLock(site.key, id).catch(() => {});
+  await store.clearServerOp(site.key, id).catch(() => {});
+  const { vaulted = [] } = await chrome.storage.local.get("vaulted");
+  vaulted.unshift({ site: site.key, id, title: chat.title, vaultId: saved.vaultId, at: Date.now() });
+  await chrome.storage.local.set({ vaulted: vaulted.slice(0, 500) });
+  return { vaultId: saved.vaultId, messages: chat.messages.length, title: chat.title };
+}
+
 /** Archives every locked chat that isn't archived yet (after turning the setting on). */
 async function archiveExistingLocks() {
   const locked = Object.values(await store.getLocked());
@@ -132,6 +187,8 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         if (sender.tab?.id && site) return chrome.tabs.update(sender.tab.id, { url: `https://${site.hosts[0]}/` });
         return;
       }
+      case "moveToVault":
+        return moveToVault(msg);
       case "archiveExisting":
         return archiveExistingLocks();
       case "openRecovery":
