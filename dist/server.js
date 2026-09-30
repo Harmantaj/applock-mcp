@@ -204,6 +204,32 @@ export function createServer(opts = {}) {
         const n = r.detail?.queued ?? 0;
         return text(`Hide on phone is on.${n ? ` ${n} locked ChatGPT chat(s) queued for archiving;` : ""} Archiving happens as soon as chatgpt.com is open in that browser. Check progress with applock_status.`);
     }));
+    server.registerTool("copy_to_vault", {
+        title: "Copy web chats into the vault",
+        description: 'Saves the full transcript of ChatGPT or Claude chats into the encrypted AppLock vault, WITHOUT deleting them anywhere, so they can be read in the AppLock Vault phone app or with read_hidden. Use chat_id "locked" for every locked ChatGPT/Claude chat. Needs the browser extension with that site signed in.',
+        inputSchema: {
+            chat_id: z.string().min(1).default("locked").describe('"locked" for all locked chats, or one chat id'),
+            site: z.enum(["chatgpt", "claude"]).optional().describe("Needed with a single chat id"),
+        },
+        annotations: { destructiveHint: false },
+    }, safely(async ({ chat_id, site }) => {
+        requireConfig();
+        if (!extensionConnected())
+            return fail("The AppLock browser extension is not connected. Chrome must be running on the computer with AppLock enabled.");
+        if (chat_id !== "locked" && !site)
+            return fail("Pass site together with a single chat id.");
+        const cmd = enqueue({ action: "vaultCopy", site, chatId: chat_id });
+        const r = await waitForResult(cmd.id, 180_000);
+        if (!r)
+            return fail("The extension didn't finish within 3 minutes.");
+        const saved = r.detail?.saved ?? [];
+        const errors = r.detail?.errors ?? [];
+        if (!saved.length && !errors.length)
+            return text("There are no locked ChatGPT or Claude chats to copy.");
+        const lines = saved.map((s) => `- "${s.title}" (${s.site}, ${s.messages} messages)`);
+        const errs = errors.map((e) => `- ${e.site} ${e.id}: ${e.error}`);
+        return text(`${saved.length ? `Copied ${saved.length} chat(s) into the vault (nothing was deleted):\n${lines.join("\n")}` : "Nothing was copied."}${errs.length ? `\nFailed:\n${errs.join("\n")}` : ""}`);
+    }));
     server.registerTool("unlock_vault", {
         title: "Unlock the vault",
         description: opts.publicUrl

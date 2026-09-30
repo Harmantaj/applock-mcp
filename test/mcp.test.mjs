@@ -36,7 +36,7 @@ test("exposes the expected tools with read-only hints", async () => {
   const { tools } = await client.listTools();
   const names = tools.map((t) => t.name).sort();
   assert.deepEqual(names, [
-    "applock_status", "hide_browser_chat", "hide_on_phone", "hide_session", "list_browser_chats", "list_hidden",
+    "applock_status", "copy_to_vault", "hide_browser_chat", "hide_on_phone", "hide_session", "list_browser_chats", "list_hidden",
     "list_sessions", "lock_vault", "read_hidden", "restore_hidden", "unlock_vault",
   ]);
   const ro = Object.fromEntries(tools.map((t) => [t.name, !!t.annotations?.readOnlyHint]));
@@ -155,7 +155,7 @@ test("Streamable HTTP transport (ChatGPT) serves the same tools behind the secre
     const c = new Client({ name: "chatgpt-sim", version: "1" });
     await c.connect(new StreamableHTTPClientTransport(new URL(url)));
     const { tools } = await c.listTools();
-    assert.equal(tools.length, 11);
+    assert.equal(tools.length, 12);
     const st = await c.callTool({ name: "applock_status", arguments: {} });
     assert.match(st.content[0].text, /Vault: locked/);
     await c.close();

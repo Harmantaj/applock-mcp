@@ -14,7 +14,7 @@ ChatGPT, Claude.ai and Gemini keep chats on their servers. An MCP server only gi
 ## Install
 
 ```bash
-npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.6.1/applock-mcp-0.6.1.tgz
+npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.6.2/applock-mcp-0.6.2.tgz
 applock-mcp setup                 # passphrase + optional Touch ID
 applock-mcp install claude        # or: antigravity | chatgpt
 ```
@@ -52,6 +52,7 @@ This starts AppLock in the background (launchd), turns on Tailscale Funnel for A
 | `hide_session` | Encrypt a session into the vault (`current` = when this session ends) | no |
 | `list_browser_chats` | Web chats seen by the extension | no |
 | `hide_browser_chat` | Lock a web chat (`current` = the open one; `everywhere` also archives it in ChatGPT) | no |
+| `copy_to_vault` | Copy locked ChatGPT/Claude chats into the vault without deleting them (readable in the phone Vault) | no |
 | `hide_on_phone` | Turn on ChatGPT archiving for locked chats so they leave the phone apps' lists | no |
 | `unlock_vault` | Touch ID prompt, local passphrase page, or (remote) a one-time unlock link | — |
 | `lock_vault` | Lock now | no |
