@@ -20,7 +20,7 @@ export interface BrowserChat {
 
 export interface BridgeCommand {
   id: string;
-  action: "lock" | "relock" | "phoneHiding";
+  action: "lock" | "relock" | "phoneHiding" | "vaultCopy";
   /** lock: also archive on the provider so it leaves the phone apps' lists. */
   archive?: boolean;
   /** phoneHiding: turn "Hide on your phone too" on or off. */
@@ -77,7 +77,7 @@ export function extensionConnected(maxAgeMs = 75_000): boolean {
 }
 
 /** Waits for the extension to acknowledge a command. */
-export async function waitForResult(cmdId: string, timeoutMs = 45_000) {
+export async function waitForResult(cmdId: string, timeoutMs = 45_000): Promise<{ ok: boolean; chat?: BrowserChat; error?: string; detail?: any; at: string } | undefined> {
   const end = Date.now() + timeoutMs;
   while (Date.now() < end) {
     const r = readState().results?.[cmdId];

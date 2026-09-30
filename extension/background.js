@@ -76,8 +76,17 @@ async function inTab(tab, msg) {
 async function moveToVault({ site: siteKey, id }) {
   const { unlockedUntil = 0 } = await chrome.storage.local.get("unlockedUntil");
   if (Date.now() >= unlockedUntil) throw new Error("Unlock AppLock first.");
+  return saveToVault(siteKey, id, { deleteAfter: true });
+}
+
+/**
+ * Saves the whole chat, encrypted, in the AppLock vault on this computer. With
+ * deleteAfter it then deletes the chat at the provider, only once the vault has
+ * confirmed the copy is stored.
+ */
+async function saveToVault(siteKey, id, { deleteAfter }) {
   const site = SITES.find((s) => s.key === siteKey);
-  if (!site || !["chatgpt", "claude"].includes(site.key)) throw new Error(`Moving ${site?.name ?? siteKey} chats to the vault isn't supported.`);
+  if (!site || !["chatgpt", "claude"].includes(site.key)) throw new Error(`Saving ${site?.name ?? siteKey} chats to the vault isn't supported.`);
   const tab = await tabFor(site);
   const chat = await inTab(tab, { type: "exportChat", id });
   if (!chat.messages.length) throw new Error("That chat has no messages to save.");
@@ -93,11 +102,13 @@ async function moveToVault({ site: siteKey, id }) {
   } catch (e) {
     throw new Error(`The AppLock vault on this computer didn't save it (${e.message}). Nothing was deleted. Is the AppLock MCP server running?`);
   }
-  await inTab(tab, { type: "deleteChat", id });
-  await store.removeLock(site.key, id).catch(() => {});
-  await store.clearServerOp(site.key, id).catch(() => {});
+  if (deleteAfter) {
+    await inTab(tab, { type: "deleteChat", id });
+    await store.removeLock(site.key, id).catch(() => {});
+    await store.clearServerOp(site.key, id).catch(() => {});
+  }
   const { vaulted = [] } = await chrome.storage.local.get("vaulted");
-  vaulted.unshift({ site: site.key, id, title: chat.title, vaultId: saved.vaultId, at: Date.now() });
+  vaulted.unshift({ site: site.key, id, title: chat.title, vaultId: saved.vaultId, at: Date.now(), deleted: !!deleteAfter });
   await chrome.storage.local.set({ vaulted: vaulted.slice(0, 500) });
   return { vaultId: saved.vaultId, messages: chat.messages.length, title: chat.title };
 }
@@ -249,6 +260,20 @@ async function syncBridge() {
             await store.queueServerOp(chat.site, chat.id, true);
           }
           results.push({ id: cmd.id, ok: true, chat: { site: chat.site, id: chat.id, title: chat.title } });
+        } else if (cmd.action === "vaultCopy") {
+          // Copies transcripts into the vault without deleting anything at the provider.
+          const locked = Object.values(await getLocked()).filter((l) => ["chatgpt", "claude"].includes(l.site));
+          const targets = cmd.chatId === "locked" ? locked : [{ site: cmd.site, id: cmd.chatId }];
+          const done = [];
+          const errors = [];
+          for (const t of targets) {
+            try {
+              done.push({ site: t.site, ...(await saveToVault(t.site, t.id, { deleteAfter: false })) });
+            } catch (e) {
+              errors.push({ site: t.site, id: t.id, error: e.message });
+            }
+          }
+          results.push({ id: cmd.id, ok: errors.length === 0 || done.length > 0, detail: { saved: done.map((d) => ({ site: d.site, title: d.title, messages: d.messages })), errors } });
         } else if (cmd.action === "phoneHiding") {
           // Hiding more strongly is allowed from the MCP server; revealing never is.
           await store.setPrefs({ archiveOnLock: !!cmd.on });

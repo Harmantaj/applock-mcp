@@ -181,6 +181,21 @@ test("hide_on_phone: the AI turns on phone hiding and already-locked ChatGPT cha
   await page.close();
 });
 
+test("copy_to_vault: the AI copies locked chats into the vault without deleting anything", async () => {
+  const deletesBefore = archived.filter((a) => a.body?.is_visible === false).length;
+  const page = await ctx.newPage();
+  await open(page, "https://chatgpt.com/");
+  const r = await call("copy_to_vault", {});
+  expect(r.isError, r.text).toBe(false);
+  expect(r.text).toContain("Copied 2 chat(s) into the vault (nothing was deleted)");
+  expect(r.text).toContain("\"Medical questions\" (chatgpt, 2 messages)");
+  expect(archived.filter((a) => a.body?.is_visible === false).length).toBe(deletesBefore);
+  const locks = await sw.evaluate(async () => Object.keys(await chrome.storage.sync.get(null)).filter((k) => k.startsWith("lk:chatgpt:")).length);
+  expect(locks).toBe(2);
+  expect((await call("applock_status")).text).toMatch(/Hidden items: 4/);
+  await page.close();
+});
+
 test("Move to vault: transcript saved encrypted, readable through MCP, then deleted at ChatGPT and Claude", async () => {
   const extId = new URL(sw.url()).host;
   const [gpt] = CHATGPT_CHATS;

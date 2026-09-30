@@ -120,7 +120,7 @@
     <ol class="steps">
       <li>
         <h3>Install the MCP server</h3>
-        <pre><code>npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.6.1/applock-mcp-0.6.1.tgz</code></pre>
+        <pre><code>npm install -g https://github.com/Harmantaj/applock-mcp/releases/download/v0.6.2/applock-mcp-0.6.2.tgz</code></pre>
         <p>This adds the <code>applock-mcp</code> command.</p>
       </li>
       <li>
@@ -184,7 +184,7 @@
 
   <section id="tools" class="band">
     <h2>What the AI can do</h2>
-    <p class="section-lede">Eleven MCP tools. Tools that only read are marked read-only, so ChatGPT won’t ask you to confirm them.</p>
+    <p class="section-lede">Twelve MCP tools. Tools that only read are marked read-only, so ChatGPT won’t ask you to confirm them.</p>
     <div class="table-wrap">
       <table>
         <thead><tr><th scope="col">Tool</th><th scope="col">What it does</th><th scope="col">Needs unlock</th></tr></thead>
@@ -194,6 +194,7 @@
           <tr><td><code>hide_session</code></td><td>Encrypts a session into the vault and removes it from history. Use <code>current</code> for the session you’re in; it’s hidden when the session ends.</td><td>No</td></tr>
           <tr><td><code>list_browser_chats</code></td><td>Lists ChatGPT, Claude and Gemini chats in your browser sidebar, and which one is open.</td><td>No</td></tr>
           <tr><td><code>hide_browser_chat</code></td><td>Locks a web chat through the extension. Use <code>current</code> for the chat that’s open.</td><td>No</td></tr>
+          <tr><td><code>copy_to_vault</code></td><td>Copies locked ChatGPT and Claude chats into the vault without deleting anything, so you can read them in the phone Vault.</td><td>No</td></tr>
           <tr><td><code>hide_on_phone</code></td><td>Turns on “Hide on your phone too”, so locked ChatGPT chats are also archived and leave the ChatGPT phone apps’ chat list.</td><td>No</td></tr>
           <tr><td><code>unlock_vault</code></td><td>Shows Touch ID, or opens the passphrase page on your computer. From your phone it returns a one-time unlock link instead.</td><td>—</td></tr>
           <tr><td><code>lock_vault</code></td><td>Locks the vault and the browser straight away.</td><td>No</td></tr>
