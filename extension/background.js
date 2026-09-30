@@ -51,13 +51,23 @@ async function unlockChat({ site, id }) {
 
 async function tabFor(site) {
   const patterns = site.hosts.map((h) => `https://${h}/*`);
-  let [tab] = await chrome.tabs.query({ url: patterns });
-  if (!tab) tab = await chrome.tabs.create({ url: `https://${site.hosts[0]}/`, active: false });
-  for (let i = 0; i < 40; i++) {
+  const ping = async (tab) => {
     try {
-      if ((await chrome.tabs.sendMessage(tab.id, { type: "ping" }))?.site === site.key) return tab;
-    } catch {}
+      return (await chrome.tabs.sendMessage(tab.id, { type: "ping" }))?.site === site.key;
+    } catch {
+      return false;
+    }
+  };
+  // Tabs opened before an extension update keep an orphaned script that can't
+  // answer, so try every tab, then reload one (or open one) and wait for it.
+  const tabs = await chrome.tabs.query({ url: patterns });
+  for (const t of tabs) if (await ping(t)) return t;
+  let tab = tabs[0];
+  if (tab) await chrome.tabs.reload(tab.id);
+  else tab = await chrome.tabs.create({ url: `https://${site.hosts[0]}/`, active: false });
+  for (let i = 0; i < 40; i++) {
     await new Promise((r) => setTimeout(r, 500));
+    if (await ping(tab)) return tab;
   }
   throw new Error(`Couldn't reach ${site.name} in the browser. Open it and try again.`);
 }
