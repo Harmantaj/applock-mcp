@@ -3,7 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { execFileSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer as createHttpServer } from "node:http";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -19,7 +19,7 @@ import { findSession, listSessions } from "./sources.js";
 import { deleteKey, retrieveKey, storeKey, touchIdAvailable, touchIdSupported } from "./touchid.js";
 import { changePassphrase, createVault, findHidden, hiddenCount, hideSession, listHidden, loadConfig, loadPending, privateKeyFromPassphrase, restoreHidden, saveConfig, } from "./vault.js";
 // Until it's on npm, the package installs straight from GitHub.
-const PACKAGE_SPEC = process.env.APPLOCK_PACKAGE ?? "https://github.com/Harmantaj/applock-mcp/releases/download/v0.6.3/applock-mcp-0.6.3.tgz";
+const PACKAGE_SPEC = process.env.APPLOCK_PACKAGE ?? "https://github.com/Harmantaj/applock-mcp/releases/download/v0.6.4/applock-mcp-0.6.4.tgz";
 const argv = process.argv.slice(2);
 const INFO_FLAGS = ["--version", "-v", "--help", "-h"];
 const cmd = argv[0] && (!argv[0].startsWith("-") || INFO_FLAGS.includes(argv[0])) ? argv[0] : "serve";
@@ -224,6 +224,7 @@ async function installRemote(params = {}) {
   <dict><key>APPLOCK_HOME</key><string>${xml(applockHome())}</string></dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
+  <key>Umask</key><integer>63</integer>
   <key>StandardErrorPath</key><string>${xml(log)}</string>
   <key>StandardOutPath</key><string>${xml(log)}</string>
 </dict>
@@ -238,6 +239,9 @@ async function installRemote(params = {}) {
     // bootout is asynchronous; wait for the old instance to release the port.
     await waitFor(async () => (await portFree(port)) || !(await isAppLock(port)), 5000, 200);
     writeFileSync(agentPath(), plist);
+    // The log prints the connector and vault URLs; Umask 077 covers new files, this covers an existing one.
+    if (existsSync(log))
+        chmodSync(log, 0o600);
     execFileSync("launchctl", ["bootstrap", domain, agentPath()], { stdio: "inherit" });
     if (params.quiet)
         return;

@@ -1,6 +1,6 @@
 {
   "name": "applock-mcp",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "description": "Lock and hide AI chats (Claude Code, Antigravity, ChatGPT) behind Touch ID or a passphrase. MCP server + browser extension.",
   "type": "module",
   "bin": {
@@ -38,7 +38,7 @@
     "url": "https://github.com/Harmantaj/applock-mcp.git"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.1",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {
