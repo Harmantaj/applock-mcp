@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "AppLock — Lock & Hide AI Chats",
   "short_name": "AppLock",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "description": "Hide chosen ChatGPT, Claude and Gemini chats from the sidebar and lock them behind Touch ID or a password.",
   "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" },
   "permissions": ["storage", "alarms", "contextMenus"],
